@@ -1,6 +1,7 @@
-import { LayoutDashboard, PlusCircle, BookOpen, Settings, Zap } from "lucide-react";
+import { LayoutDashboard, PlusCircle, BookOpen, Settings, Zap, LogOut, Users } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
+import { useAuthStore } from "@/store/authStore";
 import {
   Sidebar,
   SidebarContent,
@@ -12,7 +13,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 
-const items = [
+const baseItems = [
   { title: "Produtos", url: "/", icon: LayoutDashboard },
   { title: "Novo Produto", url: "/produto/novo", icon: PlusCircle },
   { title: "Gerar Catálogo", url: "/catalogo", icon: BookOpen },
@@ -23,6 +24,11 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const location = useLocation();
+  const { currentUser, logout } = useAuthStore();
+
+  const items = currentUser?.role === 'admin' 
+    ? [...baseItems, { title: "Usuários", url: "/usuarios", icon: Users }] 
+    : baseItems;
 
   return (
     <Sidebar collapsible="icon">
@@ -60,6 +66,19 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      <div className="border-t border-sidebar-border p-3 mt-auto">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton 
+              onClick={() => logout()} 
+              className="text-destructive hover:bg-destructive/10 hover:text-destructive w-full justify-start font-medium"
+            >
+              <LogOut className="h-4 w-4" />
+              {!collapsed && <span>Sair do Sistema</span>}
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </div>
     </Sidebar>
   );
 }
