@@ -1,7 +1,10 @@
-import { LayoutDashboard, PlusCircle, BookOpen, Settings, Zap, LogOut, Users } from "lucide-react";
+import { Building2, Home, LogOut, QrCode, Settings, type LucideIcon } from "lucide-react";
+import { APP_NAME, BRAND_LOGO_SRC } from "@/brand";
 import { NavLink } from "@/components/NavLink";
-import { useLocation } from "react-router-dom";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuthStore } from "@/store/authStore";
+import { PermissionKey } from "@/lib/permissions";
+import { MENU_HOSPITAIS_PERMISSIONS } from "@/lib/routeAccess";
 import {
   Sidebar,
   SidebarContent,
@@ -13,33 +16,76 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 
-const baseItems = [
-  { title: "Produtos", url: "/", icon: LayoutDashboard },
-  { title: "Novo Produto", url: "/produto/novo", icon: PlusCircle },
-  { title: "Gerar Catálogo", url: "/catalogo", icon: BookOpen },
-  { title: "Configurações", url: "/config", icon: Settings },
+type MenuItem = {
+  title: string;
+  url: string;
+  icon: LucideIcon;
+  /** Se definido, exige pelo menos uma destas permissões */
+  anyOf?: PermissionKey[];
+  permission?: PermissionKey;
+};
+
+const menuItems: MenuItem[] = [
+  {
+    title: "Página inicial",
+    url: "/",
+    icon: Home,
+    anyOf: ["pagina_inicial", "gerar_catalogo"],
+  },
+  {
+    title: "Hospitais",
+    url: "/hospitais",
+    icon: Building2,
+    anyOf: [...MENU_HOSPITAIS_PERMISSIONS],
+  },
+  {
+    title: "Cadastro de produtos",
+    url: "/cadastro-produtos",
+    icon: QrCode,
+    anyOf: ["novo_produto", "produtos"],
+  },
+  { title: "Configurações", url: "/config", icon: Settings, anyOf: ["configuracoes", "usuarios"] },
 ];
+
+function userInitials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+}
 
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
-  const location = useLocation();
-  const { currentUser, logout } = useAuthStore();
+  const { canAccess, logout, currentUser } = useAuthStore();
 
-  const items = currentUser?.role === 'admin' 
-    ? [...baseItems, { title: "Usuários", url: "/usuarios", icon: Users }] 
-    : baseItems;
+  const items = menuItems.filter((item) => {
+    if (item.anyOf) {
+      return item.anyOf.some((k) => canAccess(k));
+    }
+    if (item.permission && !canAccess(item.permission)) return false;
+    return true;
+  });
 
   return (
     <Sidebar collapsible="icon">
       <SidebarContent>
-        <div className="flex items-center gap-2 px-4 py-5 border-b border-sidebar-border">
-          <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-sidebar-primary">
-            <Zap className="w-5 h-5 text-sidebar-primary-foreground" />
-          </div>
+        <div className={`flex items-center gap-2 border-b border-sidebar-border px-4 py-4 ${collapsed ? "justify-center" : ""}`}>
+          <img
+            src={BRAND_LOGO_SRC}
+            alt={APP_NAME}
+            className={
+              collapsed
+                ? "h-9 w-9 shrink-0 rounded-full border border-sidebar-border bg-sidebar object-cover"
+                : "h-11 w-11 shrink-0 rounded-full border border-sidebar-border bg-sidebar object-cover"
+            }
+          />
           {!collapsed && (
-            <span className="text-xl font-bold tracking-tight text-sidebar-foreground" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
-              FLUX
+            <span
+              className="truncate text-lg font-bold tracking-tight text-sidebar-foreground"
+              style={{ fontFamily: "Space Grotesk, sans-serif" }}
+            >
+              {APP_NAME}
             </span>
           )}
         </div>
@@ -52,7 +98,7 @@ export function AppSidebar() {
                   <SidebarMenuButton asChild>
                     <NavLink
                       to={item.url}
-                      end={item.url === "/"}
+                      end={item.url === "/" || item.url === "/hospitais" || item.url === "/cadastro-produtos"}
                       className="hover:bg-sidebar-accent"
                       activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
                     >
@@ -66,18 +112,42 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <div className="border-t border-sidebar-border p-3 mt-auto">
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton 
-              onClick={() => logout()} 
-              className="text-destructive hover:bg-destructive/10 hover:text-destructive w-full justify-start font-medium"
-            >
-              <LogOut className="h-4 w-4" />
-              {!collapsed && <span>Sair do Sistema</span>}
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
+      <div className="mt-auto space-y-2 p-3">
+        <NavLink
+          to="/perfil"
+          className={`flex items-center gap-2 rounded-md px-2 py-2 text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground ${
+            collapsed ? "justify-center" : ""
+          }`}
+          activeClassName="bg-sidebar-accent text-sidebar-primary"
+        >
+          <Avatar className={collapsed ? "h-8 w-8" : "h-9 w-9"}>
+            {currentUser?.profilePhoto ? (
+              <AvatarImage src={currentUser.profilePhoto} alt="" className="object-cover" />
+            ) : null}
+            <AvatarFallback className="bg-sidebar-accent text-xs font-semibold text-sidebar-primary">
+              {currentUser?.name ? userInitials(currentUser.name) : "?"}
+            </AvatarFallback>
+          </Avatar>
+          {!collapsed && currentUser ? (
+            <div className="min-w-0 flex-1 text-left">
+              <div className="truncate text-sm font-medium leading-tight">{currentUser.name}</div>
+              <div className="truncate text-xs text-muted-foreground">{currentUser.email}</div>
+            </div>
+          ) : null}
+        </NavLink>
+        <div className="border-t border-sidebar-border pt-2">
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={() => logout()}
+                className="w-full justify-start font-medium text-destructive hover:bg-destructive/10 hover:text-destructive"
+              >
+                <LogOut className="h-4 w-4" />
+                {!collapsed && <span>Sair do Sistema</span>}
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </div>
       </div>
     </Sidebar>
   );

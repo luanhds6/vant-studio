@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import { useProductStore } from "@/store/productStore";
+import { useAuthStore } from "@/store/authStore";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { useDropzone } from "react-dropzone";
 import { Upload, X } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import UsersManagement from "./UsersManagement";
 
 const fileToBase64 = (file: File): Promise<string> =>
   new Promise((resolve, reject) => {
@@ -18,6 +20,7 @@ const fileToBase64 = (file: File): Promise<string> =>
 
 const SettingsPage = () => {
   const { settings, updateSettings } = useProductStore();
+  const canAccess = useAuthStore((state) => state.canAccess);
 
   const onDrop = useCallback(async (files: File[]) => {
     if (files[0]) {
@@ -33,50 +36,65 @@ const SettingsPage = () => {
     maxFiles: 1,
   });
 
+  const canConfigEmpresa = canAccess("configuracoes");
+
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-6xl">
       <h1 className="text-3xl font-bold tracking-tight">Configurações</h1>
 
+      {canConfigEmpresa ? (
       <Card>
         <CardHeader><CardTitle className="text-lg">Empresa</CardTitle></CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label>Nome da Empresa</Label>
-            <Input
-              value={settings.nomeEmpresa}
-              onChange={(e) => updateSettings({ nomeEmpresa: e.target.value })}
-            />
+        <CardContent className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Nome da Empresa</Label>
+              <Input
+                value={settings.nomeEmpresa}
+                onChange={(e) => updateSettings({ nomeEmpresa: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Slogan</Label>
+              <Input
+                value={settings.slogan}
+                onChange={(e) => updateSettings({ slogan: e.target.value })}
+                placeholder="Ex: Qualidade e confiança"
+              />
+            </div>
           </div>
-          <div className="space-y-2">
-            <Label>Slogan</Label>
-            <Input
-              value={settings.slogan}
-              onChange={(e) => updateSettings({ slogan: e.target.value })}
-              placeholder="Ex: Qualidade e confiança"
-            />
-          </div>
-        </CardContent>
-      </Card>
 
-      <Card>
-        <CardHeader><CardTitle className="text-lg">Logo</CardTitle></CardHeader>
-        <CardContent>
-          {settings.logo ? (
-            <div className="flex items-center gap-4">
-              <img src={settings.logo} alt="Logo" className="h-20 max-w-48 object-contain rounded border p-2" />
-              <Button variant="outline" size="sm" onClick={() => updateSettings({ logo: "" })}>
-                <X className="mr-1 h-3 w-3" /> Remover
-              </Button>
-            </div>
-          ) : (
-            <div {...getRootProps()} className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 transition-colors">
-              <input {...getInputProps()} />
-              <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">Arraste ou clique para adicionar o logo</p>
-            </div>
-          )}
+          <div className="space-y-2">
+            <Label>Logo da Empresa</Label>
+            {settings.logo ? (
+              <div className="flex flex-col items-start gap-4">
+                <img src={settings.logo} alt="Logo" className="h-28 max-w-64 object-contain rounded border p-2 bg-background" />
+                <Button variant="outline" size="sm" onClick={() => updateSettings({ logo: "" })}>
+                  <X className="mr-1 h-3 w-3" /> Remover
+                </Button>
+              </div>
+            ) : (
+              <div {...getRootProps()} className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 transition-colors">
+                <input {...getInputProps()} />
+                <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">Arraste ou clique para adicionar o logo</p>
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
+      ) : null}
+
+      {canAccess("usuarios") && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Cadastro de Usuários</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <UsersManagement embedded />
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };

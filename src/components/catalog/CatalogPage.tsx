@@ -31,17 +31,9 @@ export const CatalogPage = ({ product, settings }: CatalogPageProps) => {
               background: "#f97316", display: "flex", alignItems: "center", justifyContent: "center",
               color: "white", fontWeight: 700, fontSize: "16px", fontFamily: "Space Grotesk, sans-serif"
             }}>
-              F
+              VS
             </div>
           )}
-          <div>
-            <div style={{ fontWeight: 700, fontSize: "14px", fontFamily: "Space Grotesk, sans-serif" }}>
-              {settings.nomeEmpresa}
-            </div>
-            {settings.slogan && (
-              <div style={{ fontSize: "8px", color: "#666" }}>{settings.slogan}</div>
-            )}
-          </div>
         </div>
         <div style={{ fontSize: "8px", color: "#999", textAlign: "right" }}>
           <div>Ref: {product.referencia}</div>
@@ -269,7 +261,7 @@ export const CatalogPage = ({ product, settings }: CatalogPageProps) => {
         borderTop: "1px solid #eee", paddingTop: "2mm",
         display: "flex", justifyContent: "space-between", fontSize: "7px", color: "#999",
       }}>
-        <span>Gerado por Flux — Catálogo Digital</span>
+        <span>Gerado por Vant Studio — Catálogo Digital</span>
         <span>{product.referencia}</span>
       </div>
     </div>

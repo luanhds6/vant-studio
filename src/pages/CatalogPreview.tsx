@@ -1,28 +1,77 @@
-import { useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useTheme } from "next-themes";
+import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { useProductStore } from "@/store/productStore";
+import { useAuthStore } from "@/store/authStore";
+import { canAccessRouteHome, getDefaultLandingPath } from "@/lib/routeAccess";
+import { cn } from "@/lib/utils";
 import { CatalogPage } from "@/components/catalog/CatalogPage";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Download, Eye, Loader2 } from "lucide-react";
+import { ArrowLeft, Download, Eye, Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 
+const slug = (s: string) =>
+  s
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9-]/g, "");
+
 const CatalogPreview = () => {
-  const { products, settings } = useProductStore();
-  const [selected, setSelected] = useState<string[]>(products.map((p) => p.id));
+  const { hospitalId } = useParams<{ hospitalId: string }>();
+  const navigate = useNavigate();
+  const canAccess = useAuthStore((s) => s.canAccess);
+  const hospitals = useProductStore((s) => s.hospitals);
+  const allProducts = useProductStore((s) => s.products);
+  const settings = useProductStore((s) => s.settings);
+
+  const hospital = useMemo(
+    () => (hospitalId ? hospitals.find((h) => h.id === hospitalId) : undefined),
+    [hospitalId, hospitals],
+  );
+  const products = useMemo(
+    () => (hospitalId ? allProducts.filter((p) => p.hospitalId === hospitalId) : []),
+    [hospitalId, allProducts],
+  );
+
+  const { resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  const [selected, setSelected] = useState<string[]>([]);
   const [generating, setGenerating] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const catalogRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    setSelected(products.map((p) => p.id));
+  }, [hospitalId, products]);
+
+  const useCatalogIsland = mounted && resolvedTheme === "dark";
+
   const toggleProduct = (id: string) => {
-    setSelected((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
+    setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
 
   const selectedProducts = products.filter((p) => selected.includes(p.id));
+
+  if (!hospitalId || !hospital) {
+    return <Navigate to={getDefaultLandingPath(canAccess)} replace />;
+  }
+
+  const goBackFromCatalog = () => {
+    if (canAccessRouteHome(canAccess)) navigate("/");
+    else if (hospitalId) navigate(`/hospital/${hospitalId}`);
+    else navigate(getDefaultLandingPath(canAccess));
+  };
 
   const generatePDF = async () => {
     if (selectedProducts.length === 0) {
@@ -33,7 +82,6 @@ const CatalogPreview = () => {
     setGenerating(true);
     setShowPreview(true);
 
-    // Wait for render
     await new Promise((r) => setTimeout(r, 500));
 
     try {
@@ -57,7 +105,9 @@ const CatalogPreview = () => {
         pdf.addImage(imgData, "JPEG", 0, 0, pdfWidth, pdfHeight);
       }
 
-      pdf.save(`catalogo-${settings.nomeEmpresa.replace(/\s+/g, "-").toLowerCase()}.pdf`);
+      const hosp = slug(hospital.nome);
+      const emp = slug(settings.nomeEmpresa || "empresa");
+      pdf.save(`catalogo-${hosp}-${emp}.pdf`);
       toast({ title: "PDF gerado com sucesso!" });
     } catch (err) {
       console.error(err);
@@ -68,15 +118,27 @@ const CatalogPreview = () => {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Gerar Catálogo</h1>
-          <p className="text-muted-foreground mt-1">
-            Selecione os produtos e gere o PDF do catálogo.
+    <div
+      className={cn(
+        "space-y-6 rounded-2xl border border-border p-6 shadow-sm",
+        useCatalogIsland
+          ? "catalog-surface bg-background text-foreground"
+          : "bg-card text-card-foreground",
+      )}
+    >
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <Button variant="ghost" size="sm" className="-ml-2 mb-1" onClick={goBackFromCatalog}>
+            <ArrowLeft className="mr-1 h-4 w-4" />
+            {canAccessRouteHome(canAccess) ? "Página inicial" : "Voltar ao hospital"}
+          </Button>
+          <p className="text-sm font-medium text-muted-foreground">{hospital.nome}</p>
+          <h1 className="text-3xl font-bold tracking-tight">Gerar catálogo</h1>
+          <p className="mt-1 text-muted-foreground">
+            Selecione os produtos deste hospital (ou todos) e gere o PDF no mesmo formato de antes.
           </p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => setShowPreview(!showPreview)} disabled={selectedProducts.length === 0}>
             <Eye className="mr-2 h-4 w-4" />
             {showPreview ? "Ocultar" : "Pré-visualizar"}
@@ -91,40 +153,51 @@ const CatalogPreview = () => {
       {products.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="py-12 text-center">
-            <p className="text-muted-foreground">Nenhum produto cadastrado. Adicione produtos primeiro.</p>
+            <p className="text-muted-foreground">
+              Nenhum produto neste hospital.
+              {canAccess("novo_produto") ? (
+                <>
+                  {" "}
+                  Cadastre produtos em <span className="font-medium text-foreground">Hospitais</span> → abra o
+                  hospital → novo produto.
+                </>
+              ) : null}
+            </p>
           </CardContent>
         </Card>
       ) : (
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg flex items-center justify-between">
-              <span>Produtos ({selected.length}/{products.length} selecionados)</span>
-              <div className="flex gap-2">
+            <CardTitle className="flex flex-col gap-2 text-lg sm:flex-row sm:items-center sm:justify-between">
+              <span>
+                Produtos ({selected.length}/{products.length} selecionados)
+              </span>
+              <div className="flex flex-wrap gap-2">
                 <Button variant="ghost" size="sm" onClick={() => setSelected(products.map((p) => p.id))}>
-                  Selecionar todos
+                  Catálogo completo
                 </Button>
                 <Button variant="ghost" size="sm" onClick={() => setSelected([])}>
-                  Limpar
+                  Limpar seleção
                 </Button>
               </div>
             </CardTitle>
           </CardHeader>
           <CardContent>
+            <p className="mb-3 text-xs text-muted-foreground">
+              Use «Catálogo completo» para todas as páginas no PDF, ou desmarque itens para gerar só os produtos escolhidos.
+            </p>
             <div className="space-y-2">
               {products.map((p) => (
                 <label
                   key={p.id}
-                  className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
+                  className="flex cursor-pointer items-center gap-3 rounded-lg p-3 transition-colors hover:bg-muted/50"
                 >
-                  <Checkbox
-                    checked={selected.includes(p.id)}
-                    onCheckedChange={() => toggleProduct(p.id)}
-                  />
+                  <Checkbox checked={selected.includes(p.id)} onCheckedChange={() => toggleProduct(p.id)} />
                   {p.imagemPrincipal && (
-                    <img src={p.imagemPrincipal} alt="" className="w-10 h-10 object-contain rounded border" />
+                    <img src={p.imagemPrincipal} alt="" className="h-10 w-10 rounded border object-contain" />
                   )}
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium truncate">{p.nome}</div>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-medium">{p.nome}</div>
                     <div className="text-xs text-muted-foreground">
                       {p.referencia && `Ref: ${p.referencia} · `}
                       {p.categoria}
@@ -132,7 +205,7 @@ const CatalogPreview = () => {
                   </div>
                   <div className="flex gap-1">
                     {p.cores.slice(0, 4).map((c) => (
-                      <div key={c.id} className="w-4 h-4 rounded-full border" style={{ backgroundColor: c.hex }} />
+                      <div key={c.id} className="h-4 w-4 rounded-full border" style={{ backgroundColor: c.hex }} />
                     ))}
                   </div>
                 </label>
@@ -142,11 +215,10 @@ const CatalogPreview = () => {
         </Card>
       )}
 
-      {/* Hidden catalog for PDF generation + preview */}
       {showPreview && selectedProducts.length > 0 && (
         <div className="space-y-4">
           <h2 className="text-xl font-semibold">Pré-visualização</h2>
-          <div className="overflow-auto border rounded-xl bg-muted/30 p-4">
+          <div className="overflow-auto rounded-xl border bg-muted/30 p-4">
             <div ref={catalogRef} className="flex flex-col items-center gap-6">
               {selectedProducts.map((product) => (
                 <div key={product.id} className="shadow-lg">
@@ -158,7 +230,6 @@ const CatalogPreview = () => {
         </div>
       )}
 
-      {/* Off-screen render for PDF (when not previewing) */}
       {!showPreview && generating && (
         <div style={{ position: "absolute", left: "-9999px", top: 0 }}>
           <div ref={catalogRef}>

@@ -11,8 +11,18 @@ export interface ProductColor {
   hex: string;
 }
 
+/** Hospital: produtos e catálogos ficam agrupados por hospital */
+export interface Hospital {
+  id: string;
+  nome: string;
+  cidade: string;
+  createdAt: string;
+}
+
 export interface Product {
   id: string;
+  /** Produto pertence a um único hospital */
+  hospitalId: string;
   nome: string;
   categoria: string;
   referencia: string;

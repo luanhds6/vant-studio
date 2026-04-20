@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useProductStore } from "@/store/productStore";
+import { useAuthStore } from "@/store/authStore";
+import { getDefaultLandingPath } from "@/lib/routeAccess";
 import { Product, ProductColor, ProductDetail } from "@/types/Product";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -22,6 +24,7 @@ const fileToBase64 = (file: File): Promise<string> =>
   });
 
 const emptyProduct: Omit<Product, "id" | "createdAt" | "updatedAt"> = {
+  hospitalId: "",
   nome: "",
   categoria: "",
   referencia: "",
@@ -38,10 +41,11 @@ const emptyProduct: Omit<Product, "id" | "createdAt" | "updatedAt"> = {
 };
 
 const ProductForm = () => {
-  const { id } = useParams();
+  const { hospitalId, id } = useParams<{ hospitalId: string; id: string }>();
   const navigate = useNavigate();
-  const { addProduct, updateProduct, getProduct } = useProductStore();
-  const isEditing = !!id;
+  const canAccess = useAuthStore((s) => s.canAccess);
+  const { addProduct, updateProduct, getProduct, getHospital } = useProductStore();
+  const isEditing = Boolean(id);
 
   const [form, setForm] = useState<Omit<Product, "id" | "createdAt" | "updatedAt">>(emptyProduct);
   const [newTamanho, setNewTamanho] = useState("");
@@ -49,16 +53,29 @@ const ProductForm = () => {
   const [newDetalhe, setNewDetalhe] = useState("");
 
   useEffect(() => {
-    if (isEditing) {
-      const existing = getProduct(id);
-      if (existing) {
-        const { id: _, createdAt, updatedAt, ...rest } = existing;
-        setForm(rest);
-      } else {
-        navigate("/");
-      }
+    if (!hospitalId || !getHospital(hospitalId)) {
+      navigate(getDefaultLandingPath(canAccess), { replace: true });
     }
-  }, [id, isEditing, getProduct, navigate]);
+  }, [hospitalId, getHospital, navigate, canAccess]);
+
+  useEffect(() => {
+    if (!hospitalId) return;
+    if (!isEditing) {
+      setForm((prev) => ({ ...prev, hospitalId }));
+      return;
+    }
+    const existing = getProduct(id!);
+    if (existing) {
+      if (existing.hospitalId !== hospitalId) {
+        navigate(`/hospital/${existing.hospitalId}/produto/${id}`, { replace: true });
+        return;
+      }
+      const { id: _pid, createdAt, updatedAt, ...rest } = existing;
+      setForm(rest);
+    } else {
+      navigate(`/hospital/${hospitalId}`, { replace: true });
+    }
+  }, [id, isEditing, getProduct, getHospital, hospitalId, navigate]);
 
   const updateField = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -149,19 +166,31 @@ const ProductForm = () => {
 
     const now = new Date().toISOString();
     if (isEditing) {
-      updateProduct({ ...form, id: id!, createdAt: getProduct(id!)?.createdAt || now, updatedAt: now });
+      updateProduct({
+        ...form,
+        hospitalId: hospitalId!,
+        id: id!,
+        createdAt: getProduct(id!)?.createdAt || now,
+        updatedAt: now,
+      });
       toast({ title: "Produto atualizado!" });
     } else {
-      addProduct({ ...form, id: generateId(), createdAt: now, updatedAt: now });
+      addProduct({
+        ...form,
+        hospitalId: hospitalId!,
+        id: generateId(),
+        createdAt: now,
+        updatedAt: now,
+      });
       toast({ title: "Produto criado!" });
     }
-    navigate("/");
+    navigate(`/hospital/${hospitalId}`);
   };
 
   return (
     <div className="space-y-6 max-w-4xl">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/")}>
+        <Button variant="ghost" size="icon" onClick={() => navigate(`/hospital/${hospitalId}`)}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <h1 className="text-3xl font-bold tracking-tight">
@@ -453,7 +482,7 @@ const ProductForm = () => {
       </Card>
 
       <div className="flex gap-3 justify-end pb-8">
-        <Button variant="outline" onClick={() => navigate("/")}>Cancelar</Button>
+        <Button variant="outline" onClick={() => navigate(`/hospital/${hospitalId}`)}>Cancelar</Button>
         <Button onClick={handleSubmit}>{isEditing ? "Salvar Alterações" : "Criar Produto"}</Button>
       </div>
     </div>
