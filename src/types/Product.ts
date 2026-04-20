@@ -31,11 +31,13 @@ export interface Product {
     cor: string;
     tamanho: string;
     localizacao: string;
+    imagem: string; // base64
   };
   marcaCliente: {
     cor: string;
     tamanho: string;
     localizacao: string;
+    imagem: string; // base64
   };
   nomeCampo: {
     texto: string;

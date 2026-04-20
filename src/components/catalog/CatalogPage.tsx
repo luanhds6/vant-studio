@@ -177,6 +177,22 @@ export const CatalogPage = ({ product, settings }: CatalogPageProps) => {
 
           {/* Pintura */}
           <InfoSection title="PINTURA">
+            {product.pintura.imagem && (
+              <div style={{ padding: "2mm 3mm 1mm" }}>
+                <img
+                  src={product.pintura.imagem}
+                  alt="Pintura do produto"
+                  style={{
+                    width: "100%",
+                    maxHeight: "22mm",
+                    objectFit: "contain",
+                    border: "1px solid #eee",
+                    borderRadius: "1mm",
+                    background: "#fafafa",
+                  }}
+                />
+              </div>
+            )}
             <InfoRow label="Cor" value={product.pintura.cor} />
             <InfoRow label="Tamanho" value={product.pintura.tamanho} />
             <InfoRow label="Localização" value={product.pintura.localizacao} />
@@ -184,6 +200,22 @@ export const CatalogPage = ({ product, settings }: CatalogPageProps) => {
 
           {/* Marca do Cliente */}
           <InfoSection title="MARCA DO CLIENTE">
+            {product.marcaCliente.imagem && (
+              <div style={{ padding: "2mm 3mm 1mm" }}>
+                <img
+                  src={product.marcaCliente.imagem}
+                  alt="Marca do cliente"
+                  style={{
+                    width: "100%",
+                    maxHeight: "22mm",
+                    objectFit: "contain",
+                    border: "1px solid #eee",
+                    borderRadius: "1mm",
+                    background: "#fafafa",
+                  }}
+                />
+              </div>
+            )}
             <InfoRow label="Cor" value={product.marcaCliente.cor} />
             <InfoRow label="Tamanho" value={product.marcaCliente.tamanho} />
             <InfoRow label="Localização" value={product.marcaCliente.localizacao} />

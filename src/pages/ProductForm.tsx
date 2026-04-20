@@ -32,8 +32,8 @@ const emptyProduct: Omit<Product, "id" | "createdAt" | "updatedAt"> = {
   detalhes: [],
   imagemPrincipal: "",
   imagensDetalhe: [],
-  pintura: { cor: "", tamanho: "", localizacao: "" },
-  marcaCliente: { cor: "", tamanho: "", localizacao: "" },
+  pintura: { cor: "", tamanho: "", localizacao: "", imagem: "" },
+  marcaCliente: { cor: "", tamanho: "", localizacao: "", imagem: "" },
   nomeCampo: { texto: "", cor: "", tamanho: "", localizacao: "" },
 };
 
@@ -92,6 +92,32 @@ const ProductForm = () => {
   const { getRootProps: detailRootProps, getInputProps: detailInputProps } = useDropzone({
     onDrop: onDropDetail,
     accept: { "image/*": [] },
+  });
+
+  const onDropMarcaCliente = useCallback(async (files: File[]) => {
+    if (files[0]) {
+      const b64 = await fileToBase64(files[0]);
+      updateField("marcaCliente", { ...form.marcaCliente, imagem: b64 });
+    }
+  }, [form.marcaCliente]);
+
+  const { getRootProps: brandRootProps, getInputProps: brandInputProps } = useDropzone({
+    onDrop: onDropMarcaCliente,
+    accept: { "image/*": [] },
+    maxFiles: 1,
+  });
+
+  const onDropPintura = useCallback(async (files: File[]) => {
+    if (files[0]) {
+      const b64 = await fileToBase64(files[0]);
+      updateField("pintura", { ...form.pintura, imagem: b64 });
+    }
+  }, [form.pintura]);
+
+  const { getRootProps: paintingRootProps, getInputProps: paintingInputProps } = useDropzone({
+    onDrop: onDropPintura,
+    accept: { "image/*": [] },
+    maxFiles: 1,
   });
 
   const addTamanho = () => {
@@ -333,6 +359,33 @@ const ProductForm = () => {
             <Label>Localização</Label>
             <Input value={form.pintura.localizacao} onChange={(e) => updateField("pintura", { ...form.pintura, localizacao: e.target.value })} />
           </div>
+          <div className="space-y-2 md:col-span-3">
+            <Label>Imagem da Pintura</Label>
+            {form.pintura.imagem ? (
+              <div className="relative inline-block">
+                <img src={form.pintura.imagem} alt="Pintura do produto" className="max-h-40 rounded-lg border bg-muted" />
+                <Button
+                  variant="destructive"
+                  size="icon"
+                  className="absolute top-2 right-2 h-7 w-7"
+                  onClick={() =>
+                    updateField("pintura", { ...form.pintura, imagem: "" })
+                  }
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <div
+                {...paintingRootProps()}
+                className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 transition-colors"
+              >
+                <input {...paintingInputProps()} />
+                <Upload className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">Arraste uma imagem ou clique para anexar a pintura</p>
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
 
@@ -350,6 +403,33 @@ const ProductForm = () => {
           <div className="space-y-2">
             <Label>Localização</Label>
             <Input value={form.marcaCliente.localizacao} onChange={(e) => updateField("marcaCliente", { ...form.marcaCliente, localizacao: e.target.value })} />
+          </div>
+          <div className="space-y-2 md:col-span-3">
+            <Label>Imagem da Marca</Label>
+            {form.marcaCliente.imagem ? (
+              <div className="relative inline-block">
+                <img src={form.marcaCliente.imagem} alt="Marca do cliente" className="max-h-40 rounded-lg border bg-muted" />
+                <Button
+                  variant="destructive"
+                  size="icon"
+                  className="absolute top-2 right-2 h-7 w-7"
+                  onClick={() =>
+                    updateField("marcaCliente", { ...form.marcaCliente, imagem: "" })
+                  }
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <div
+                {...brandRootProps()}
+                className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 transition-colors"
+              >
+                <input {...brandInputProps()} />
+                <Upload className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">Arraste uma imagem ou clique para anexar a marca do cliente</p>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
