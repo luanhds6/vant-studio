@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useDropzone } from "react-dropzone";
 import { toast } from "@/hooks/use-toast";
 import { ArrowLeft, Plus, X, Upload, Image as ImageIcon } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 
 const generateId = () => crypto.randomUUID();
 
@@ -38,13 +39,15 @@ const emptyProduct: Omit<Product, "id" | "createdAt" | "updatedAt"> = {
   pintura: { cor: "", tamanho: "", localizacao: "", imagem: "" },
   marcaCliente: { cor: "", tamanho: "", localizacao: "", imagem: "" },
   nomeCampo: { texto: "", cor: "", tamanho: "", localizacao: "" },
+  timbrado: { ativo: false, imagem: "" },
+  rastreavel: { ativo: false, imagem: "" },
 };
 
 const ProductForm = () => {
   const { hospitalId, id } = useParams<{ hospitalId: string; id: string }>();
   const navigate = useNavigate();
   const canAccess = useAuthStore((s) => s.canAccess);
-  const { addProduct, updateProduct, getProduct, getHospital } = useProductStore();
+  const { addProduct, updateProduct, getProduct, getHospital, colors: availableColors } = useProductStore();
   const isEditing = Boolean(id);
 
   const [form, setForm] = useState<Omit<Product, "id" | "createdAt" | "updatedAt">>(emptyProduct);
@@ -137,6 +140,32 @@ const ProductForm = () => {
     maxFiles: 1,
   });
 
+  const onDropTimbrado = useCallback(async (files: File[]) => {
+    if (files[0]) {
+      const b64 = await fileToBase64(files[0]);
+      updateField("timbrado", { ...form.timbrado, imagem: b64 });
+    }
+  }, [form.timbrado]);
+
+  const { getRootProps: timbradoRootProps, getInputProps: timbradoInputProps } = useDropzone({
+    onDrop: onDropTimbrado,
+    accept: { "image/*": [] },
+    maxFiles: 1,
+  });
+
+  const onDropRastreavel = useCallback(async (files: File[]) => {
+    if (files[0]) {
+      const b64 = await fileToBase64(files[0]);
+      updateField("rastreavel", { ...form.rastreavel, imagem: b64 });
+    }
+  }, [form.rastreavel]);
+
+  const { getRootProps: rastreavelRootProps, getInputProps: rastreavelInputProps } = useDropzone({
+    onDrop: onDropRastreavel,
+    accept: { "image/*": [] },
+    maxFiles: 1,
+  });
+
   const addTamanho = () => {
     if (newTamanho.trim() && !form.tamanhos.includes(newTamanho.trim())) {
       updateField("tamanhos", [...form.tamanhos, newTamanho.trim()]);
@@ -158,33 +187,42 @@ const ProductForm = () => {
     }
   };
 
-  const handleSubmit = () => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
     if (!form.nome.trim()) {
       toast({ title: "Erro", description: "Nome do produto é obrigatório.", variant: "destructive" });
       return;
     }
 
-    const now = new Date().toISOString();
-    if (isEditing) {
-      updateProduct({
-        ...form,
-        hospitalId: hospitalId!,
-        id: id!,
-        createdAt: getProduct(id!)?.createdAt || now,
-        updatedAt: now,
-      });
-      toast({ title: "Produto atualizado!" });
-    } else {
-      addProduct({
-        ...form,
-        hospitalId: hospitalId!,
-        id: generateId(),
-        createdAt: now,
-        updatedAt: now,
-      });
-      toast({ title: "Produto criado!" });
+    setIsSubmitting(true);
+    try {
+      const now = new Date().toISOString();
+      if (isEditing) {
+        await updateProduct({
+          ...form,
+          hospitalId: hospitalId!,
+          id: id!,
+          createdAt: getProduct(id!)?.createdAt || now,
+          updatedAt: now,
+        });
+        toast({ title: "Produto atualizado!" });
+      } else {
+        await addProduct({
+          ...form,
+          hospitalId: hospitalId!,
+          id: generateId(),
+          createdAt: now,
+          updatedAt: now,
+        });
+        toast({ title: "Produto criado!" });
+      }
+      navigate(`/hospital/${hospitalId}`);
+    } catch (error) {
+      toast({ title: "Erro ao salvar produto", variant: "destructive" });
+    } finally {
+      setIsSubmitting(false);
     }
-    navigate(`/hospital/${hospitalId}`);
   };
 
   return (
@@ -264,10 +302,37 @@ const ProductForm = () => {
       {/* Cores */}
       <Card>
         <CardHeader><CardTitle className="text-lg">Cores</CardTitle></CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex gap-2 items-end">
+        <CardContent className="space-y-4">
+          {/* Cores Sugeridas */}
+          {availableColors.length > 0 && (
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground uppercase">Cores Cadastradas (Clique para Adicionar)</Label>
+              <div className="flex flex-wrap gap-2 p-3 rounded-lg border bg-muted/30">
+                {availableColors.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => {
+                      if (!form.cores.some((x) => x.hex === c.hex)) {
+                        updateField("cores", [...form.cores, { id: generateId(), nome: c.nome, hex: c.hex }]);
+                        toast({ title: `Cor ${c.nome} adicionada` });
+                      } else {
+                        toast({ title: "Cor já adicionada", variant: "default" });
+                      }
+                    }}
+                    className="group flex items-center gap-2 px-2.5 py-1.5 rounded-md border bg-card hover:bg-accent hover:border-primary/50 transition-all text-xs font-medium"
+                  >
+                    <div className="w-3 h-3 rounded-full border shadow-sm group-hover:scale-110 transition-transform" style={{ backgroundColor: c.hex }} />
+                    {c.nome}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="flex gap-2 items-end pt-2 border-t">
             <div className="flex-1 space-y-1">
-              <Label>Nome da Cor</Label>
+              <Label>Nome da Cor Manual</Label>
               <Input value={newCor.nome} onChange={(e) => setNewCor({ ...newCor, nome: e.target.value })} placeholder="Ex: Branco" />
             </div>
             <div className="space-y-1">
@@ -278,10 +343,10 @@ const ProductForm = () => {
           </div>
           <div className="flex flex-wrap gap-2">
             {form.cores.map((c) => (
-              <span key={c.id} className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-secondary text-secondary-foreground text-sm">
+              <span key={c.id} className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-secondary text-secondary-foreground text-sm border shadow-sm">
                 <div className="w-4 h-4 rounded-full border" style={{ backgroundColor: c.hex }} />
                 {c.nome}
-                <button onClick={() => updateField("cores", form.cores.filter((x) => x.id !== c.id))} className="hover:text-destructive">
+                <button onClick={() => updateField("cores", form.cores.filter((x) => x.id !== c.id))} className="ml-1 p-0.5 rounded-full hover:bg-destructive hover:text-destructive-foreground transition-colors">
                   <X className="h-3 w-3" />
                 </button>
               </span>
@@ -481,9 +546,93 @@ const ProductForm = () => {
         </CardContent>
       </Card>
 
+      {/* Timbrado */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <div>
+            <CardTitle className="text-lg">Item Timbrado</CardTitle>
+            <p className="text-sm text-muted-foreground">Este item possui marcação timbrada?</p>
+          </div>
+          <Switch 
+            checked={form.timbrado.ativo} 
+            onCheckedChange={(checked) => updateField("timbrado", { ...form.timbrado, ativo: checked })} 
+          />
+        </CardHeader>
+        {form.timbrado.ativo && (
+          <CardContent className="space-y-4 pt-4 border-t">
+            <Label>Imagem do Timbrado</Label>
+            {form.timbrado.imagem ? (
+              <div className="relative inline-block">
+                <img src={form.timbrado.imagem} alt="Timbrado" className="max-h-40 rounded-lg border bg-muted" />
+                <Button
+                  variant="destructive"
+                  size="icon"
+                  className="absolute top-2 right-2 h-7 w-7"
+                  onClick={() => updateField("timbrado", { ...form.timbrado, imagem: "" })}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <div
+                {...timbradoRootProps()}
+                className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 transition-colors"
+              >
+                <input {...timbradoInputProps()} />
+                <Upload className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">Arraste a imagem do timbrado ou clique para selecionar</p>
+              </div>
+            )}
+          </CardContent>
+        )}
+      </Card>
+
+      {/* Rastreável */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <div>
+            <CardTitle className="text-lg">Item Rastreável</CardTitle>
+            <p className="text-sm text-muted-foreground">Este item possui rastreamento ou código de barras?</p>
+          </div>
+          <Switch 
+            checked={form.rastreavel.ativo} 
+            onCheckedChange={(checked) => updateField("rastreavel", { ...form.rastreavel, ativo: checked })} 
+          />
+        </CardHeader>
+        {form.rastreavel.ativo && (
+          <CardContent className="space-y-4 pt-4 border-t">
+            <Label>Imagem do Rastreamento/Etiqueta</Label>
+            {form.rastreavel.imagem ? (
+              <div className="relative inline-block">
+                <img src={form.rastreavel.imagem} alt="Rastreamento" className="max-h-40 rounded-lg border bg-muted" />
+                <Button
+                  variant="destructive"
+                  size="icon"
+                  className="absolute top-2 right-2 h-7 w-7"
+                  onClick={() => updateField("rastreavel", { ...form.rastreavel, imagem: "" })}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <div
+                {...rastreavelRootProps()}
+                className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 transition-colors"
+              >
+                <input {...rastreavelInputProps()} />
+                <Upload className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">Arraste a imagem do rastreio ou clique para selecionar</p>
+              </div>
+            )}
+          </CardContent>
+        )}
+      </Card>
+
       <div className="flex gap-3 justify-end pb-8">
         <Button variant="outline" onClick={() => navigate(`/hospital/${hospitalId}`)}>Cancelar</Button>
-        <Button onClick={handleSubmit}>{isEditing ? "Salvar Alterações" : "Criar Produto"}</Button>
+        <Button onClick={handleSubmit} disabled={isSubmitting}>
+          {isSubmitting ? "Salvando..." : isEditing ? "Salvar Alterações" : "Criar Produto"}
+        </Button>
       </div>
     </div>
   );

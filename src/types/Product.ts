@@ -11,6 +11,13 @@ export interface ProductColor {
   hex: string;
 }
 
+export interface BaseColor {
+  id: string;
+  nome: string;
+  hex: string;
+  createdAt: string;
+}
+
 /** Hospital: produtos e catálogos ficam agrupados por hospital */
 export interface Hospital {
   id: string;
@@ -54,6 +61,14 @@ export interface Product {
     cor: string;
     tamanho: string;
     localizacao: string;
+  };
+  timbrado: {
+    ativo: boolean;
+    imagem: string; // base64
+  };
+  rastreavel: {
+    ativo: boolean;
+    imagem: string; // base64
   };
   createdAt: string;
   updatedAt: string;

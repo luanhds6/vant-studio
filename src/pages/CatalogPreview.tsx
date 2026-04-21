@@ -91,13 +91,15 @@ const CatalogPreview = () => {
       if (!pages) throw new Error("Sem páginas");
 
       for (let i = 0; i < pages.length; i++) {
+        console.log(`Iniciando captura da página ${i + 1}...`);
         const canvas = await html2canvas(pages[i] as HTMLElement, {
-          scale: 2,
+          scale: 3, // Increased scale for better precision
           useCORS: true,
           backgroundColor: "#ffffff",
+          logging: false,
         });
 
-        const imgData = canvas.toDataURL("image/jpeg", 0.95);
+        const imgData = canvas.toDataURL("image/jpeg", 1.0);
         const pdfWidth = 210;
         const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
 
@@ -231,8 +233,8 @@ const CatalogPreview = () => {
       )}
 
       {!showPreview && generating && (
-        <div style={{ position: "absolute", left: "-9999px", top: 0 }}>
-          <div ref={catalogRef}>
+        <div style={{ position: "absolute", left: "-9999px", top: 0, width: "210mm" }}>
+          <div ref={catalogRef} style={{ width: "210mm" }}>
             {selectedProducts.map((product) => (
               <CatalogPage key={product.id} product={product} settings={settings} />
             ))}

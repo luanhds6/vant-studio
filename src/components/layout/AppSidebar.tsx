@@ -1,4 +1,4 @@
-import { Building2, Home, LogOut, QrCode, Settings, type LucideIcon } from "lucide-react";
+import { Building2, Home, LogOut, QrCode, Settings, Palette, type LucideIcon } from "lucide-react";
 import { APP_NAME, BRAND_LOGO_SRC } from "@/brand";
 import { NavLink } from "@/components/NavLink";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -43,6 +43,12 @@ const menuItems: MenuItem[] = [
     url: "/cadastro-produtos",
     icon: QrCode,
     anyOf: ["novo_produto", "produtos"],
+  },
+  {
+    title: "Cores",
+    url: "/cores",
+    icon: Palette,
+    anyOf: ["configuracoes", "novo_produto"],
   },
   { title: "Configurações", url: "/config", icon: Settings, anyOf: ["configuracoes", "usuarios"] },
 ];

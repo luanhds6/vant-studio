@@ -52,22 +52,26 @@ const HospitalsPage = () => {
     return (hid: string) => map.get(hid) ?? 0;
   }, [products]);
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (!canCadastrar) return;
     const n = nome.trim();
     if (!n) {
       toast({ title: "Informe o nome do hospital", variant: "destructive" });
       return;
     }
-    addHospital({
-      id: generateId(),
-      nome: n,
-      cidade: cidade.trim(),
-      createdAt: new Date().toISOString(),
-    });
-    setNome("");
-    setCidade("");
-    toast({ title: "Hospital cadastrado" });
+    try {
+      await addHospital({
+        id: generateId(),
+        nome: n,
+        cidade: cidade.trim(),
+        createdAt: new Date().toISOString(),
+      });
+      setNome("");
+      setCidade("");
+      toast({ title: "Hospital cadastrado" });
+    } catch (error) {
+      toast({ title: "Erro ao cadastrar hospital", variant: "destructive" });
+    }
   };
 
   const goBack = () => {
@@ -195,9 +199,13 @@ const HospitalsPage = () => {
                                 <AlertDialogFooter>
                                   <AlertDialogCancel>Cancelar</AlertDialogCancel>
                                   <AlertDialogAction
-                                    onClick={() => {
-                                      deleteHospital(h.id);
-                                      toast({ title: "Hospital removido" });
+                                    onClick={async () => {
+                                      try {
+                                        await deleteHospital(h.id);
+                                        toast({ title: "Hospital removido" });
+                                      } catch (error) {
+                                        toast({ title: "Erro ao remover hospital", variant: "destructive" });
+                                      }
                                     }}
                                   >
                                     Excluir

@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useProductStore } from "@/store/productStore";
 import { useAuthStore } from "@/store/authStore";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,12 +20,36 @@ const fileToBase64 = (file: File): Promise<string> =>
 
 const SettingsPage = () => {
   const { settings, updateSettings } = useProductStore();
+  const [localSettings, setLocalSettings] = useState({
+    nomeEmpresa: settings.nomeEmpresa,
+    slogan: settings.slogan,
+  });
+  const [isSaving, setIsSaving] = useState(false);
   const canAccess = useAuthStore((state) => state.canAccess);
+
+  useEffect(() => {
+    setLocalSettings({
+      nomeEmpresa: settings.nomeEmpresa,
+      slogan: settings.slogan,
+    });
+  }, [settings]);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      await updateSettings(localSettings);
+      toast({ title: "Configurações salvas!" });
+    } catch (error) {
+      toast({ title: "Erro ao salvar configurações", variant: "destructive" });
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const onDrop = useCallback(async (files: File[]) => {
     if (files[0]) {
       const b64 = await fileToBase64(files[0]);
-      updateSettings({ logo: b64 });
+      await updateSettings({ logo: b64 });
       toast({ title: "Logo atualizado!" });
     }
   }, [updateSettings]);
@@ -50,18 +74,21 @@ const SettingsPage = () => {
             <div className="space-y-2">
               <Label>Nome da Empresa</Label>
               <Input
-                value={settings.nomeEmpresa}
-                onChange={(e) => updateSettings({ nomeEmpresa: e.target.value })}
+                value={localSettings.nomeEmpresa}
+                onChange={(e) => setLocalSettings(prev => ({ ...prev, nomeEmpresa: e.target.value }))}
               />
             </div>
             <div className="space-y-2">
               <Label>Slogan</Label>
               <Input
-                value={settings.slogan}
-                onChange={(e) => updateSettings({ slogan: e.target.value })}
+                value={localSettings.slogan}
+                onChange={(e) => setLocalSettings(prev => ({ ...prev, slogan: e.target.value }))}
                 placeholder="Ex: Qualidade e confiança"
               />
             </div>
+            <Button onClick={handleSave} disabled={isSaving}>
+              {isSaving ? "Salvando..." : "Salvar Alterações"}
+            </Button>
           </div>
 
           <div className="space-y-2">
@@ -69,7 +96,10 @@ const SettingsPage = () => {
             {settings.logo ? (
               <div className="flex flex-col items-start gap-4">
                 <img src={settings.logo} alt="Logo" className="h-28 max-w-64 object-contain rounded border p-2 bg-background" />
-                <Button variant="outline" size="sm" onClick={() => updateSettings({ logo: "" })}>
+                <Button variant="outline" size="sm" onClick={async () => {
+                  await updateSettings({ logo: "" });
+                  toast({ title: "Logo removido!" });
+                }}>
                   <X className="mr-1 h-3 w-3" /> Remover
                 </Button>
               </div>

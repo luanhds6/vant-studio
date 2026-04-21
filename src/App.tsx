@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 import { BrowserRouter, Route, Routes, Navigate, useParams } from "react-router-dom";
@@ -12,11 +13,13 @@ import ProductCadastroPage from "./pages/ProductCadastroPage";
 import CatalogPreview from "./pages/CatalogPreview";
 import SettingsPage from "./pages/Settings";
 import ProfilePage from "./pages/Profile";
+import ColorsPage from "./pages/ColorsPage";
 import Login from "./pages/Login";
 import { ProtectedLayout } from "./components/layout/ProtectedRoute";
 import { LegacyProductRedirect } from "./components/routes/LegacyProductRedirect";
 import { RequireGerarCatalogo } from "./components/routes/RequireGerarCatalogo";
 import { useAuthStore } from "./store/authStore";
+import { useProductStore } from "./store/productStore";
 import { PermissionKey } from "./lib/permissions";
 import { canAccessModuloHospitais, canAccessRouteHome, getDefaultLandingPath } from "./lib/routeAccess";
 
@@ -65,9 +68,23 @@ const SettingsRouteGate = () => {
 };
 
 const App = () => {
-  const canAccess = useAuthStore((state) => state.canAccess);
+  const { canAccess, initialize: initAuth, isLoading: authLoading } = useAuthStore();
+  const { initialize: initProducts, isLoading: productsLoading } = useProductStore();
+
+  useEffect(() => {
+    initAuth();
+    initProducts();
+  }, [initAuth, initProducts]);
 
   const landingPath = getDefaultLandingPath(canAccess);
+
+  if (authLoading || productsLoading) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-background">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+      </div>
+    );
+  }
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -75,7 +92,7 @@ const App = () => {
         <TooltipProvider>
           <Toaster />
           <Sonner />
-          <BrowserRouter>
+          <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <Routes>
               <Route path="/login" element={<Login />} />
 
@@ -158,6 +175,7 @@ const App = () => {
                 <Route path="/produto/:id" element={<LegacyProductRedirect />} />
 
                 <Route path="/config" element={<SettingsRouteGate />} />
+                <Route path="/cores" element={<ColorsPage />} />
                 <Route path="/perfil" element={<ProfilePage />} />
               </Route>
 

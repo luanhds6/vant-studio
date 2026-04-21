@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useAuthStore } from "@/store/authStore";
 import { canDownloadCatalogPdf, getDefaultLandingPath } from "@/lib/routeAccess";
+import { toast } from "sonner";
 
 const HospitalHub = () => {
   const { hospitalId } = useParams<{ hospitalId: string }>();
@@ -163,7 +164,14 @@ const HospitalHub = () => {
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                           <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => deleteProduct(product.id)}>Excluir</AlertDialogAction>
+                          <AlertDialogAction
+                            onClick={async () => {
+                              await deleteProduct(product.id);
+                              toast.success("Produto excluído com sucesso!");
+                            }}
+                          >
+                            Excluir
+                          </AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
                     </AlertDialog>

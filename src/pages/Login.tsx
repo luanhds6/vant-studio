@@ -19,15 +19,24 @@ export default function Login() {
   const [nameMain, ...nameRest] = APP_NAME.trim().split(/\s+/);
   const nameSub = nameRest.join(" ");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const success = login(email, password);
-    if (success) {
-      toast.success("Login efetuado com sucesso!");
-      const canAccess = useAuthStore.getState().canAccess;
-      navigate(getDefaultLandingPath(canAccess), { replace: true });
-    } else {
-      toast.error("Credenciais inválidas. Tente novamente.");
+    setIsLoading(true);
+    try {
+      const result = await login(email, password);
+      if (result.success) {
+        toast.success(result.message);
+        const canAccess = useAuthStore.getState().canAccess;
+        navigate(getDefaultLandingPath(canAccess), { replace: true });
+      } else {
+        toast.error(result.message || "Credenciais inválidas. Tente novamente.");
+      }
+    } catch (error) {
+      toast.error("Ocorreu um erro ao tentar fazer login.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -89,9 +98,10 @@ export default function Login() {
             </div>
             <Button
               type="submit"
+              disabled={isLoading}
               className="mt-2 w-full py-6 text-base font-bold shadow-none transition hover:-translate-y-0.5 dark:border-0 dark:bg-amber-400 dark:text-[#0f172a] dark:hover:bg-amber-500 dark:hover:text-[#0f172a] dark:hover:shadow-[0_5px_15px_rgba(251,191,36,0.4)]"
             >
-              Acessar catálogo
+              {isLoading ? "Acessando..." : "Acessar catálogo"}
             </Button>
           </form>
 

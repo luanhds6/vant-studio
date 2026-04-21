@@ -79,7 +79,9 @@ export default function UsersManagement({ embedded = false }: UsersManagementPro
     setIsDialogOpen(true);
   };
 
-  const handleSaveUser = (e: React.FormEvent) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSaveUser = async (e: React.FormEvent) => {
     e.preventDefault();
     const isEditing = !!editingUserId;
     const needsPassword = !isEditing || defineNewPassword;
@@ -107,57 +109,69 @@ export default function UsersManagement({ embedded = false }: UsersManagementPro
       return;
     }
 
-    if (isEditing) {
-      const updates: Partial<{
-        name: string;
-        email: string;
-        role: "admin" | "user";
-        password: string;
-        mustChangePassword: boolean;
-        permissions: PermissionKey[];
-      }> = {
-        name: formData.name,
-        email: formData.email,
-        role: formData.role,
-        permissions: formData.role === "admin" ? ALL_PERMISSIONS : formData.permissions,
-      };
+    setIsSubmitting(true);
+    try {
+      if (isEditing) {
+        const updates: Partial<{
+          name: string;
+          email: string;
+          role: "admin" | "user";
+          password: string;
+          mustChangePassword: boolean;
+          permissions: PermissionKey[];
+        }> = {
+          name: formData.name,
+          email: formData.email,
+          role: formData.role,
+          permissions: formData.role === "admin" ? ALL_PERMISSIONS : formData.permissions,
+        };
 
-      if (defineNewPassword) {
-        updates.password = formData.password;
-        updates.mustChangePassword = formData.passwordType === "temporary";
+        if (defineNewPassword) {
+          updates.password = formData.password;
+          updates.mustChangePassword = formData.passwordType === "temporary";
+        }
+
+        if (editingUserId === currentUser?.id && formData.role !== "admin") {
+          toast.error("Você não pode remover seu próprio perfil de administrador.");
+          setIsSubmitting(false);
+          return;
+        }
+
+        await updateUser(editingUserId!, updates);
+        toast.success("Usuário atualizado com sucesso!");
+      } else {
+        await addUser({
+          name: formData.name,
+          email: formData.email,
+          password: formData.password,
+          role: formData.role,
+          mustChangePassword: formData.passwordType === "temporary",
+          permissions: formData.role === "admin" ? ALL_PERMISSIONS : formData.permissions,
+        });
+        toast.success("Usuário criado com sucesso!");
       }
 
-      if (editingUserId === currentUser?.id && formData.role !== "admin") {
-        toast.error("Você não pode remover seu próprio perfil de administrador.");
-        return;
-      }
-
-      updateUser(editingUserId!, updates);
-      toast.success("Usuário atualizado com sucesso!");
-    } else {
-      addUser({
-        name: formData.name,
-        email: formData.email,
-        password: formData.password,
-        role: formData.role,
-        mustChangePassword: formData.passwordType === "temporary",
-        permissions: formData.role === "admin" ? ALL_PERMISSIONS : formData.permissions,
-      });
-      toast.success("Usuário criado com sucesso!");
+      setIsDialogOpen(false);
+      resetForm();
+    } catch (error) {
+      toast.error("Erro ao salvar usuário.");
+    } finally {
+      setIsSubmitting(false);
     }
-
-    setIsDialogOpen(false);
-    resetForm();
   };
 
-  const handleDelete = (id: string, name: string) => {
+  const handleDelete = async (id: string, name: string) => {
     if (id === currentUser?.id) {
       toast.error("Você não pode excluir sua própria conta.");
       return;
     }
     if (confirm(`Tem certeza que deseja excluir o usuário ${name}?`)) {
-      deleteUser(id);
-      toast.success("Usuário excluído com sucesso.");
+      try {
+        await deleteUser(id);
+        toast.success("Usuário excluído com sucesso.");
+      } catch (error) {
+        toast.error("Erro ao excluir usuário.");
+      }
     }
   };
 
@@ -317,7 +331,9 @@ export default function UsersManagement({ embedded = false }: UsersManagementPro
                 )}
               </div>
               <DialogFooter className="mt-6">
-                <Button type="submit" className="w-full">{editingUserId ? "Salvar Alterações" : "Salvar Usuário"}</Button>
+                <Button type="submit" className="w-full" disabled={isSubmitting}>
+                  {isSubmitting ? "Salvando..." : editingUserId ? "Salvar Alterações" : "Salvar Usuário"}
+                </Button>
               </DialogFooter>
             </form>
           </DialogContent>

@@ -18,8 +18,19 @@
     <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
   </head>
 
-  <body>
+  <body data-gramm="false">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // Filtro para limpar o console de erros de extensões (Grammarly/Iterable)
+      const originalError = console.error;
+      console.error = function(...args) {
+        const msg = args[0] ? String(args[0]) : "";
+        if (msg.includes("iterable") || msg.includes("Grammarly") || msg.includes("intrinsics")) {
+          return;
+        }
+        originalError.apply(console, args);
+      };
+    </script>
   </body>
 </html>

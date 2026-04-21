@@ -1,12 +1,11 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { supabase } from '@/lib/supabase';
 import { PermissionKey, normalizePermissions, hasUserPermission } from '@/lib/permissions';
 
 export interface User {
   id: string;
   name: string;
   email: string;
-  password: string;
   profilePhoto?: string;
   role: 'admin' | 'user';
   mustChangePassword: boolean;
@@ -14,217 +13,237 @@ export interface User {
   createdAt: string;
 }
 
-const DEFAULT_USERS: User[] = [
-  {
-    id: 'master-admin',
-    name: 'TI ServBrasil',
-    email: 'ti@servbrasil.com.br',
-    password: 'Br@sil500',
-    profilePhoto: '',
-    role: 'admin',
-    mustChangePassword: false,
-    permissions: normalizePermissions('admin'),
-    createdAt: new Date().toISOString()
-  }
-];
-
-const MASTER_EMAIL = 'ti@servbrasil.com.br';
-
-const grantMasterAccess = (user: User): User => {
-  if (user.email.trim().toLowerCase() !== MASTER_EMAIL) return user;
-  return {
-    ...user,
-    role: 'admin',
-    mustChangePassword: false,
-    permissions: normalizePermissions('admin'),
-  };
-};
-
 interface AuthState {
   isAuthenticated: boolean;
   currentUser: User | null;
   users: User[];
-  login: (email: string, pass: string) => boolean;
-  logout: () => void;
-  addUser: (user: Omit<User, 'id' | 'createdAt'>) => void;
-  updateUser: (id: string, updates: Partial<User>) => void;
-  deleteUser: (id: string) => void;
-  changeOwnPassword: (currentPassword: string, newPassword: string) => { success: boolean; message: string };
-  updateOwnProfile: (updates: { name: string; email: string; profilePhoto?: string }) => { success: boolean; message: string };
+  isLoading: boolean;
+  login: (email: string, pass: string) => Promise<{ success: boolean; message: string }>;
+  logout: () => Promise<void>;
+  initialize: () => Promise<void>;
+  addUser: (user: Omit<User, 'id' | 'createdAt'>) => Promise<void>;
+  updateUser: (id: string, updates: Partial<User>) => Promise<void>;
+  deleteUser: (id: string) => Promise<void>;
   canAccess: (permission: PermissionKey) => boolean;
+  fetchUsers: () => Promise<void>;
 }
 
-export const useAuthStore = create<AuthState>()(
-  persist(
-    (set, get) => ({
-      isAuthenticated: false,
-      currentUser: null,
-      users: DEFAULT_USERS,
+export const useAuthStore = create<AuthState>((set, get) => ({
+  isAuthenticated: false,
+  currentUser: null,
+  users: [],
+  isLoading: true,
+
+  initialize: async () => {
+    try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       
-      login: (email, pass) => {
-        const { users } = get();
-        const currentUsers = users && users.length > 0 ? users : DEFAULT_USERS;
-        const normalizedUsers = currentUsers.map((u) => grantMasterAccess({
-          ...u,
-          permissions: normalizePermissions(u.role, u.permissions),
-        }));
-        const normalizedEmail = email.trim().toLowerCase();
-        const normalizedPass = pass.trim();
+      if (sessionError) {
+        console.error('Erro ao buscar sessão no Supabase Auth:', sessionError);
+      }
 
-        const user = normalizedUsers.find(
-          (u) => u.email.trim().toLowerCase() === normalizedEmail && u.password?.trim() === normalizedPass
-        );
-        if (user) {
-          set({ isAuthenticated: true, currentUser: user, users: normalizedUsers });
-          return true;
-        }
-        return false;
-      },
-      
-      logout: () => set({ isAuthenticated: false, currentUser: null }),
-      
-      addUser: (user) => {
-        const newUser: User = grantMasterAccess({
-          ...user,
-          name: user.name.trim(),
-          email: user.email.trim().toLowerCase(),
-          password: user.password.trim(),
-          permissions: normalizePermissions(user.role, user.permissions),
-          id: Math.random().toString(36).substring(2, 9),
-          createdAt: new Date().toISOString()
-        });
-        set({ users: [...get().users, newUser] });
-      },
-      
-      updateUser: (id, updates) => {
-        const normalizedUpdates: Partial<User> = {
-          ...updates,
-          ...(updates.name !== undefined ? { name: updates.name.trim() } : {}),
-          ...(updates.email !== undefined ? { email: updates.email.trim().toLowerCase() } : {}),
-          ...(updates.password !== undefined ? { password: updates.password.trim() } : {}),
-          ...(updates.role !== undefined || updates.permissions !== undefined
-            ? {
-                permissions: normalizePermissions(
-                  (updates.role as 'admin' | 'user') || get().users.find((u) => u.id === id)?.role || 'user',
-                  (updates.permissions as PermissionKey[] | undefined) ||
-                    get().users.find((u) => u.id === id)?.permissions
-                ),
-              }
-            : {}),
-        };
+      if (session?.user) {
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .maybeSingle();
 
-        set({
-          users: get().users.map(u => u.id === id ? grantMasterAccess({ ...u, ...normalizedUpdates }) : u),
-          currentUser: get().currentUser?.id === id ? grantMasterAccess({ ...get().currentUser!, ...normalizedUpdates }) : get().currentUser
-        });
-      },
-      
-      deleteUser: (id) => {
-        set({
-          users: get().users.filter(u => u.id !== id)
-        });
-      },
-
-      changeOwnPassword: (currentPassword, newPassword) => {
-        const { currentUser, users } = get();
-        if (!currentUser) {
-          return { success: false, message: 'Usuário não autenticado.' };
+        if (profileError) {
+          console.error('Erro ao buscar perfil na inicialização:', profileError.message, profileError);
         }
 
-        const dbUser = users.find((u) => u.id === currentUser.id);
-        if (!dbUser || dbUser.password !== currentPassword) {
-          return { success: false, message: 'Senha atual inválida.' };
-        }
-
-        if (newPassword.length < 6) {
-          return { success: false, message: 'A nova senha deve ter pelo menos 6 caracteres.' };
-        }
-
-        const updatedUser = { ...dbUser, password: newPassword, mustChangePassword: false };
-        set({
-          users: users.map((u) => (u.id === dbUser.id ? updatedUser : u)),
-          currentUser: updatedUser,
-        });
-
-        return { success: true, message: 'Senha alterada com sucesso.' };
-      },
-
-      updateOwnProfile: ({ name, email, profilePhoto }) => {
-        const { currentUser, users } = get();
-        if (!currentUser) {
-          return { success: false, message: 'Usuário não autenticado.' };
-        }
-
-        const normalizedEmail = email.trim().toLowerCase();
-        const emailTaken = users.some((u) => u.id !== currentUser.id && u.email === normalizedEmail);
-        if (emailTaken) {
-          return { success: false, message: 'Este e-mail já está em uso por outro usuário.' };
-        }
-
-        const updatedUser = grantMasterAccess({
-          ...currentUser,
-          name: name.trim(),
-          email: normalizedEmail,
-          ...(profilePhoto !== undefined ? { profilePhoto } : {}),
-        });
-
-        set({
-          users: users.map((u) => (u.id === currentUser.id ? updatedUser : u)),
-          currentUser: updatedUser,
-        });
-
-        return { success: true, message: 'Perfil atualizado com sucesso.' };
-      },
-
-      canAccess: (permission) => {
-        const { currentUser } = get();
-        if (!currentUser) return false;
-        return hasUserPermission(currentUser.role, currentUser.permissions, permission);
-      },
-    }),
-    {
-      name: 'flux-auth-store',
-      version: 1,
-      migrate: (persistedState: any) => {
-        const rawState = persistedState?.state ?? persistedState;
-        if (!rawState) return persistedState;
-
-        const migratedUsers = (rawState.users || DEFAULT_USERS).map((u: User) => grantMasterAccess({
-          ...u,
-          permissions: normalizePermissions(u.role, u.permissions),
-          mustChangePassword: u.mustChangePassword ?? false,
-          profilePhoto: u.profilePhoto ?? '',
-        }));
-
-        const currentUser = rawState.currentUser
-          ? {
-              ...rawState.currentUser,
-              permissions: normalizePermissions(
-                rawState.currentUser.role,
-                rawState.currentUser.permissions
-              ),
-              mustChangePassword: rawState.currentUser.mustChangePassword ?? false,
-              profilePhoto: rawState.currentUser.profilePhoto ?? '',
-            }
-          : null;
-
-        if (persistedState?.state) {
-          return {
-            ...persistedState,
-            state: {
-              ...rawState,
-              users: migratedUsers,
-              currentUser,
-            },
+        if (profile) {
+          const user: User = {
+            id: profile.id,
+            name: profile.name || '',
+            email: profile.email || session.user.email || '',
+            profilePhoto: profile.profile_photo || '',
+            role: profile.role as 'admin' | 'user',
+            mustChangePassword: profile.must_change_password || false,
+            permissions: (profile.permissions as PermissionKey[]) || [],
+            createdAt: profile.created_at,
           };
+          set({ isAuthenticated: true, currentUser: user, isLoading: false });
+          if (user.role === 'admin') {
+            get().fetchUsers();
+          }
+        } else {
+          set({ isAuthenticated: false, currentUser: null, isLoading: false });
+        }
+      } else {
+        set({ isAuthenticated: false, currentUser: null, isLoading: false });
+      }
+    } catch (err) {
+      console.error('Erro crítico na inicialização do sistema:', err);
+      set({ isAuthenticated: false, currentUser: null, isLoading: false });
+    }
+
+    // Listen for auth changes
+    supabase.auth.onAuthStateChange(async (event, session) => {
+      try {
+        if (event === 'SIGNED_IN' && session?.user) {
+          const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .maybeSingle();
+
+          if (profileError) {
+            console.error('Erro ao carregar perfil após SIGNED_IN:', profileError.message, profileError);
+          }
+
+          if (profile) {
+            const user: User = {
+              id: profile.id,
+              name: profile.name || '',
+              email: profile.email || session.user.email || '',
+              profilePhoto: profile.profile_photo || '',
+              role: profile.role as 'admin' | 'user',
+              mustChangePassword: profile.must_change_password || false,
+              permissions: (profile.permissions as PermissionKey[]) || [],
+              createdAt: profile.created_at,
+            };
+            set({ isAuthenticated: true, currentUser: user });
+            if (user.role === 'admin') {
+              get().fetchUsers();
+            }
+          }
+        } else if (event === 'SIGNED_OUT') {
+          set({ isAuthenticated: false, currentUser: null, users: [] });
+        }
+      } catch (err) {
+        console.error('Erro no listener de autenticação:', err);
+      }
+    });
+  },
+
+  login: async (email, password) => {
+    try {
+      const { data: { user: authUser }, error: loginError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (loginError) {
+        console.error('Falha na tentativa de login no Supabase Auth:', loginError);
+        return { success: false, message: loginError.message };
+      }
+
+      if (authUser) {
+        // Fetch profile immediately to update state before returning
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', authUser.id)
+          .maybeSingle();
+
+        if (profileError) {
+          console.error('Erro ao buscar perfil após login:', profileError.message, profileError);
+          return { success: false, message: `Erro no banco de dados: ${profileError.message}` };
         }
 
-        return {
-          ...rawState,
-          users: migratedUsers,
-          currentUser,
-        };
-      },
+        if (!profile) {
+          console.error('Perfil não encontrado para o ID:', authUser.id);
+          return { success: false, message: 'Seu perfil de usuário não foi encontrado. Entre em contato com o suporte.' };
+        }
+
+        if (profile) {
+          const user: User = {
+            id: profile.id,
+            name: profile.name || '',
+            email: profile.email || authUser.email || '',
+            profilePhoto: profile.profile_photo || '',
+            role: profile.role as 'admin' | 'user',
+            mustChangePassword: profile.must_change_password || false,
+            permissions: (profile.permissions as PermissionKey[]) || [],
+            createdAt: profile.created_at,
+          };
+          set({ isAuthenticated: true, currentUser: user });
+          if (user.role === 'admin') {
+            get().fetchUsers();
+          }
+          return { success: true, message: 'Login realizado com sucesso!' };
+        }
+      }
+
+      return { success: false, message: 'Usuário não encontrado.' };
+    } catch (err) {
+      console.error('Erro inesperado durante o login:', err);
+      return { success: false, message: 'Ocorreu um erro inesperado ao fazer login.' };
     }
-  )
-);
+  },
+
+  logout: async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Erro ao deslogar no Supabase:', error);
+      }
+    } catch (err) {
+      console.error('Erro inesperado no logout:', err);
+    }
+  },
+
+  fetchUsers: async () => {
+    const { data: profiles, error } = await supabase
+      .from('profiles')
+      .select('*');
+
+    if (error) {
+      console.error('Error fetching users:', error);
+      return;
+    }
+
+    const users: User[] = profiles.map((p) => ({
+      id: p.id,
+      name: p.name || '',
+      email: p.email || '',
+      profilePhoto: p.profile_photo || '',
+      role: p.role as 'admin' | 'user',
+      mustChangePassword: p.must_change_password || false,
+      permissions: (p.permissions as PermissionKey[]) || [],
+      createdAt: p.created_at,
+    }));
+
+    set({ users });
+  },
+
+  addUser: async (userData) => {
+    // In Supabase, adding a user is usually done via Auth API
+    // This would require a service role or a specific edge function if done from the client
+    // For now, we'll assume the user is created via Supabase Auth and the trigger handles the profile
+    console.warn('addUser should be implemented via Supabase Auth/Edge Functions');
+  },
+
+  updateUser: async (id, updates) => {
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        name: updates.name,
+        role: updates.role,
+        permissions: updates.permissions,
+        profile_photo: updates.profilePhoto,
+        must_change_password: updates.mustChangePassword,
+      })
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error updating user:', error);
+      throw error;
+    }
+    
+    get().fetchUsers();
+  },
+
+  deleteUser: async (id) => {
+    // Deleting a user requires management API access
+    console.warn('deleteUser should be implemented via Supabase Management API/Edge Functions');
+  },
+
+  canAccess: (permission) => {
+    const { currentUser } = get();
+    if (!currentUser) return false;
+    return hasUserPermission(currentUser.role, currentUser.permissions, permission);
+  },
+}));
