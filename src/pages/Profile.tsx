@@ -1,6 +1,6 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useDropzone } from "react-dropzone";
-import { Camera, Upload, X } from "lucide-react";
+import { Camera, Loader2, Upload, X } from "lucide-react";
 import { useAuthStore } from "@/store/authStore";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -24,10 +24,20 @@ export default function ProfilePage() {
   const [fullName, setFullName] = useState(currentUser?.name || "");
   const [email, setEmail] = useState(currentUser?.email || "");
   const [profilePhoto, setProfilePhoto] = useState(currentUser?.profilePhoto || "");
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [savingPassword, setSavingPassword] = useState(false);
 
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+
+  useEffect(() => {
+    if (currentUser) {
+      setFullName(currentUser.name || "");
+      setEmail(currentUser.email || "");
+      setProfilePhoto(currentUser.profilePhoto || "");
+    }
+  }, [currentUser]);
 
   const [firstName, lastName] = useMemo(() => {
     const trimmed = fullName.trim();
@@ -54,27 +64,31 @@ export default function ProfilePage() {
     setFullName(`${nextFirstName} ${nextLastName}`.trim());
   };
 
-  const handleSaveProfile = (e: React.FormEvent) => {
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!fullName.trim() || !email.trim()) {
       toast({
         title: "Erro",
-        description: "Nome, sobrenome e e-mail são obrigatórios.",
+        description: "Nome e e-mail são obrigatórios.",
         variant: "destructive",
       });
       return;
     }
 
-    const result = updateOwnProfile({ name: fullName, email, profilePhoto });
-    if (!result.success) {
-      toast({ title: "Erro", description: result.message, variant: "destructive" });
-      return;
+    setSavingProfile(true);
+    try {
+      const result = await updateOwnProfile({ name: fullName, email, profilePhoto });
+      if (!result.success) {
+        toast({ title: "Erro", description: result.message, variant: "destructive" });
+        return;
+      }
+      toast({ title: "Perfil atualizado", description: "As suas informações foram guardadas." });
+    } finally {
+      setSavingProfile(false);
     }
-
-    toast({ title: "Perfil atualizado!", description: "Seus dados foram salvos." });
   };
 
-  const handleChangePassword = (e: React.FormEvent) => {
+  const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentPassword || !newPassword || !confirmPassword) {
       toast({ title: "Erro", description: "Preencha todos os campos de senha.", variant: "destructive" });
@@ -85,20 +99,28 @@ export default function ProfilePage() {
       return;
     }
 
-    const result = changeOwnPassword(currentPassword, newPassword);
-    if (!result.success) {
-      toast({ title: "Erro", description: result.message, variant: "destructive" });
-      return;
+    setSavingPassword(true);
+    try {
+      const result = await changeOwnPassword(currentPassword, newPassword);
+      if (!result.success) {
+        toast({ title: "Erro", description: result.message, variant: "destructive" });
+        return;
+      }
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      toast({ title: "Senha atualizada", description: "A sua palavra-passe foi alterada com sucesso." });
+    } finally {
+      setSavingPassword(false);
     }
-
-    setCurrentPassword("");
-    setNewPassword("");
-    setConfirmPassword("");
-    toast({ title: "Senha atualizada!", description: "Sua senha foi alterada com sucesso." });
   };
 
+  if (!currentUser) {
+    return <p className="text-muted-foreground">A carregar perfil…</p>;
+  }
+
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="max-w-4xl space-y-6">
       <h1 className="text-3xl font-bold tracking-tight">Meu Perfil</h1>
 
       <Card>
@@ -107,7 +129,7 @@ export default function ProfilePage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSaveProfile} className="space-y-5">
-            <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-6">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-[220px_1fr]">
               <div className="space-y-2">
                 <Label>Foto de Perfil</Label>
                 {profilePhoto ? (
@@ -115,7 +137,7 @@ export default function ProfilePage() {
                     <img
                       src={profilePhoto}
                       alt="Foto de perfil"
-                      className="w-40 h-40 rounded-xl border object-cover bg-muted"
+                      className="h-40 w-40 rounded-xl border object-cover bg-muted"
                     />
                     <div className="flex gap-2">
                       <Button type="button" variant="outline" size="sm" {...getRootProps()}>
@@ -132,17 +154,17 @@ export default function ProfilePage() {
                 ) : (
                   <div
                     {...getRootProps()}
-                    className="h-40 border-2 border-dashed rounded-xl p-4 text-center cursor-pointer hover:border-primary/50 transition-colors flex flex-col justify-center"
+                    className="flex h-40 cursor-pointer flex-col justify-center rounded-xl border-2 border-dashed p-4 text-center transition-colors hover:border-primary/50"
                   >
                     <input {...getInputProps()} />
-                    <Upload className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
+                    <Upload className="mb-2 mx-auto h-6 w-6 text-muted-foreground" />
                     <p className="text-sm text-muted-foreground">Clique ou arraste sua foto</p>
                   </div>
                 )}
               </div>
 
               <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="firstName">Nome</Label>
                     <Input
@@ -172,54 +194,78 @@ export default function ProfilePage() {
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="email@empresa.com"
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Se alterar o e-mail, o Supabase pode enviar confirmação. Use o link recebido para concluir.
+                  </p>
                 </div>
               </div>
             </div>
 
-            <Button type="submit">Salvar Dados do Perfil</Button>
+            <Button type="submit" disabled={savingProfile}>
+              {savingProfile ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  A guardar…
+                </>
+              ) : (
+                "Salvar dados do perfil"
+              )}
+            </Button>
           </form>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Troca de Senha — {fullName || currentUser?.name}</CardTitle>
+          <CardTitle className="text-lg">Troca de palavra-passe — {fullName || currentUser.name}</CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleChangePassword} className="space-y-4 max-w-lg">
+          <form onSubmit={handleChangePassword} className="max-w-lg space-y-4">
             <div className="space-y-2">
               <Label>Login atual</Label>
-              <Input value={email} disabled />
+              <Input value={email} disabled readOnly className="bg-muted/50" />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="currentPassword">Senha Atual</Label>
+              <Label htmlFor="currentPassword">Palavra-passe atual</Label>
               <Input
                 id="currentPassword"
                 type="password"
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
+                autoComplete="current-password"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="newPassword">Nova Senha</Label>
+              <Label htmlFor="newPassword">Nova palavra-passe</Label>
               <Input
                 id="newPassword"
                 type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 placeholder="Mínimo de 6 caracteres"
+                autoComplete="new-password"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirmar Nova Senha</Label>
+              <Label htmlFor="confirmPassword">Confirmar nova palavra-passe</Label>
               <Input
                 id="confirmPassword"
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
+                autoComplete="new-password"
               />
             </div>
-            <Button type="submit">Atualizar Senha</Button>
+            <Button type="submit" disabled={savingPassword}>
+              {savingPassword ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  A atualizar…
+                </>
+              ) : (
+                "Atualizar palavra-passe"
+              )}
+            </Button>
           </form>
         </CardContent>
       </Card>

@@ -1,5 +1,5 @@
 import { Building2, Home, LogOut, QrCode, Settings, Palette, type LucideIcon } from "lucide-react";
-import { APP_NAME, BRAND_LOGO_SRC } from "@/brand";
+import { BRAND_ICON_SRC } from "@/brand";
 import { NavLink } from "@/components/NavLink";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuthStore } from "@/store/authStore";
@@ -76,24 +76,18 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon" variant="floating" className="border-0">
       <SidebarContent>
-        <div className={`flex items-center gap-2 border-b border-sidebar-border/60 px-4 py-4 ${collapsed ? "justify-center" : ""}`}>
+        <div className="flex w-full items-center justify-center border-b border-sidebar-border/60 px-4 py-4">
           <img
-            src={BRAND_LOGO_SRC}
-            alt={APP_NAME}
+            src={BRAND_ICON_SRC}
+            alt=""
+            width={96}
+            height={96}
             className={
               collapsed
-                ? "h-9 w-9 shrink-0 rounded-full border border-sidebar-border bg-sidebar object-cover"
-                : "h-11 w-11 shrink-0 rounded-full border border-sidebar-border bg-sidebar object-cover"
+                ? "h-9 w-auto max-h-9 object-contain object-bottom"
+                : "h-10 w-auto max-w-[2.75rem] object-contain object-bottom sm:h-11"
             }
           />
-          {!collapsed && (
-            <span
-              className="truncate text-lg font-bold tracking-tight text-sidebar-foreground"
-              style={{ fontFamily: "Space Grotesk, sans-serif" }}
-            >
-              {APP_NAME}
-            </span>
-          )}
         </div>
 
         <SidebarGroup>

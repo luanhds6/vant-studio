@@ -84,11 +84,31 @@ export default {
           from: { opacity: "0", transform: "translateY(10px)" },
           to: { opacity: "1", transform: "translateY(0)" },
         },
+        "vant-login-wave-drift-1": {
+          "0%, 100%": { transform: "translate3d(0,0,0) scale(1) rotate(0deg)" },
+          "50%": { transform: "translate3d(14px,-8px,0) scale(1.04) rotate(1.2deg)" },
+        },
+        "vant-login-wave-drift-2": {
+          "0%, 100%": { transform: "translate3d(0,0,0)" },
+          "50%": { transform: "translate3d(-10px,6px,0) scale(1.03)" },
+        },
+        "vant-login-wave-drift-3": {
+          "0%, 100%": { transform: "translate3d(0,4px,0) scaleY(1)" },
+          "50%": { transform: "translate3d(6px,-4px,0) scaleY(1.08)" },
+        },
+        "vant-login-wave-aurora": {
+          "0%, 100%": { filter: "hue-rotate(0deg) saturate(1.12) brightness(1.02)" },
+          "50%": { filter: "hue-rotate(22deg) saturate(1.4) brightness(1.05)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         "vant-fade-up": "vant-fade-up 0.4s ease-out both",
+        "vant-login-wave-drift-1": "vant-login-wave-drift-1 22s ease-in-out infinite",
+        "vant-login-wave-drift-2": "vant-login-wave-drift-2 28s ease-in-out infinite",
+        "vant-login-wave-drift-3": "vant-login-wave-drift-3 19s ease-in-out infinite",
+        "vant-login-wave-aurora": "vant-login-wave-aurora 14s ease-in-out infinite",
       },
     },
   },

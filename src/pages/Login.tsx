@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { APP_NAME, BRAND_LOGO_SRC } from "@/brand";
+import { BRAND_ICON_SRC } from "@/brand";
 import { toast } from "sonner";
 import { useAuthStore } from "@/store/authStore";
 import { useNavigate } from "react-router-dom";
@@ -15,9 +15,6 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const login = useAuthStore((state) => state.login);
   const navigate = useNavigate();
-
-  const [nameMain, ...nameRest] = APP_NAME.trim().split(/\s+/);
-  const nameSub = nameRest.join(" ");
 
   const [isLoading, setIsLoading] = useState(false);
 
@@ -52,19 +49,14 @@ export default function Login() {
 
         <div className="flex min-h-0 flex-1 flex-col justify-center px-8 py-10 text-foreground md:min-h-0 md:px-10 md:py-8 dark:text-white">
           <div className="mb-8 text-center">
-            <div className="mb-4 flex justify-center">
-              <img
-                src={BRAND_LOGO_SRC}
-                alt={APP_NAME}
-                className="h-20 w-20 rounded-full border-2 border-border object-cover shadow-lg dark:border-white/20"
-              />
-            </div>
-            <h1 className="text-4xl font-bold tracking-[0.12em] dark:text-white">{nameMain}</h1>
-            {nameSub ? (
-              <span className="mt-1 block text-sm font-light uppercase tracking-[0.25em] text-primary dark:text-amber-400">
-                {nameSub}
-              </span>
-            ) : null}
+            <img
+              src={BRAND_ICON_SRC}
+              alt=""
+              width={512}
+              height={512}
+              decoding="async"
+              className="mx-auto block h-40 w-auto max-w-[12rem] object-contain object-bottom sm:h-44 sm:max-w-[13.5rem] select-none leading-none drop-shadow-[0_0_16px_hsl(199_89%_45%_/_0.2)] dark:drop-shadow-[0_0_18px_hsl(199_65%_55%_/_0.18)]"
+            />
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
@@ -75,7 +67,7 @@ export default function Login() {
               <Input
                 id="email"
                 type="email"
-                placeholder="ti@servbrasil.com.br"
+                placeholder="seu@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required

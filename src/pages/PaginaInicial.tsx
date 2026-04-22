@@ -3,18 +3,16 @@ import { Link, useNavigate } from "react-router-dom";
 import { useProductStore } from "@/store/productStore";
 import { useAuthStore } from "@/store/authStore";
 import { canCadastrarHospitais, canDownloadCatalogPdf, canShowHospitaisExtrasFromHome } from "@/lib/routeAccess";
+import { APP_NAME } from "@/brand";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
-  BarChart3,
   BookOpen,
   Building2,
   ChevronRight,
   Factory,
   Package,
   Palette,
-  Plus,
-  Sparkles,
 } from "lucide-react";
 
 function StatCard({
@@ -36,16 +34,18 @@ function StatCard({
   }[tint];
 
   return (
-    <Card className="group overflow-hidden transition duration-300 ease-out hover:-translate-y-0.5 hover:shadow-lg">
-      <CardContent className="flex flex-col gap-3 p-5">
-        <div className={`flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br ${rings}`}>
-          <Icon className="h-5 w-5" aria-hidden />
+    <Card className="group overflow-hidden transition duration-300 ease-out hover:-translate-y-0.5 hover:shadow-sm">
+      <CardContent className="flex flex-col gap-1.5 p-2.5 sm:p-3">
+        <div className={`flex h-6 w-6 items-center justify-center rounded-lg bg-gradient-to-br ${rings}`}>
+          <Icon className="h-3 w-3" aria-hidden />
         </div>
-        <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-          <p className="font-['Space_Grotesk',sans-serif] text-3xl font-bold tabular-nums text-foreground">{value}</p>
+        <div className="min-w-0">
+          <p className="text-xs font-medium uppercase leading-tight tracking-wide text-muted-foreground">{label}</p>
+          <p className="font-['Space_Grotesk',sans-serif] text-xl font-bold leading-none tabular-nums text-foreground">
+            {value}
+          </p>
         </div>
-        <div className="h-8 w-full opacity-70 transition group-hover:opacity-100" aria-hidden>
+        <div className="h-3.5 w-full opacity-50 transition group-hover:opacity-80" aria-hidden>
           <svg viewBox="0 0 120 32" className="h-full w-full text-primary/40" preserveAspectRatio="none">
             <path
               d="M0 24 L20 18 L40 22 L60 10 L80 14 L100 6 L120 12"
@@ -89,22 +89,21 @@ const PaginaInicial = () => {
     return (hid: string) => map.get(hid) ?? 0;
   }, [products]);
 
-  const featured = hospitals[0];
   const firstCatalogHospitalId = hospitals[0]?.id;
 
   return (
-    <div className="mx-auto max-w-6xl space-y-10 pb-12">
-      <header className="space-y-2">
-        <div className="flex items-center gap-2">
-          <span className="h-1 w-10 rounded-full bg-gradient-to-r from-primary to-orange-400" aria-hidden />
-          <span className="text-xs font-semibold uppercase tracking-widest text-primary/90">Vant Studio</span>
-        </div>
-        <h1 className="font-['Space_Grotesk',sans-serif] text-3xl font-bold tracking-tight text-foreground md:text-4xl">
+    <div className="mx-auto max-w-6xl -mt-1 space-y-6 pb-10">
+      <header className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <h1 className="font-['Space_Grotesk',sans-serif] text-2xl font-bold tracking-tight text-foreground md:text-3xl">
           Página inicial
         </h1>
-        <p className="max-w-2xl text-sm text-muted-foreground md:text-base">
-          Gere catálogos, organize unidades e produtos com uma experiência leve e fluida.
-        </p>
+        <div
+          className="flex items-center gap-2 self-end sm:self-auto shrink-0 text-primary/90"
+          aria-label={APP_NAME}
+        >
+          <span className="h-1 w-10 rounded-full bg-gradient-to-r from-primary to-orange-400" aria-hidden />
+          <span className="text-xs font-semibold uppercase tracking-widest">{APP_NAME}</span>
+        </div>
       </header>
 
       {hospitals.length === 0 ? (
@@ -131,35 +130,7 @@ const PaginaInicial = () => {
         </Card>
       ) : (
         <>
-          {featured ? (
-            <Card className="relative overflow-hidden border-primary/15 bg-gradient-to-br from-card/95 via-card/90 to-orange-50/40 shadow-lg dark:to-orange-950/20">
-              <div className="pointer-events-none absolute -right-8 -top-8 h-40 w-40 rounded-full bg-primary/10 blur-3xl" />
-              <CardContent className="relative flex flex-col gap-6 p-6 md:flex-row md:items-center md:justify-between md:p-8">
-                <div className="min-w-0 space-y-2">
-                  <div className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
-                    <Sparkles className="h-3.5 w-3.5" aria-hidden />
-                    Destaque
-                  </div>
-                  <h2 className="font-['Space_Grotesk',sans-serif] text-2xl font-bold tracking-tight md:text-3xl">
-                    {featured.nome}
-                  </h2>
-                  {featured.cidade ? (
-                    <p className="text-sm text-muted-foreground md:text-base">{featured.cidade}</p>
-                  ) : null}
-                  <p className="text-sm text-muted-foreground">
-                    {countByHospital(featured.id)} produto{countByHospital(featured.id) !== 1 ? "s" : ""}
-                    {canCatalogo ? " · pronto para gerar o catálogo em PDF" : " · abra a unidade para ver produtos e ações"}
-                  </p>
-                </div>
-                <Button size="lg" className="shrink-0 shadow-orange-500/25" onClick={() => openHospital(featured.id)}>
-                  <BookOpen className="h-4 w-4" aria-hidden />
-                  {canCatalogo ? "Gerar catálogo" : "Abrir hospital"}
-                </Button>
-              </CardContent>
-            </Card>
-          ) : null}
-
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
             <StatCard label="Hospitais" value={hospitals.length} icon={Building2} tint="orange" />
             <StatCard label="Produtos" value={products.length} icon={Package} tint="violet" />
             <StatCard
@@ -170,20 +141,6 @@ const PaginaInicial = () => {
             />
             <StatCard label="Cores cadastradas" value={colors.length} icon={Palette} tint="sky" />
           </div>
-
-          {canHospitaisExtras ? (
-            <div className="flex flex-col items-stretch justify-between gap-4 rounded-2xl border border-border/50 bg-card/70 p-4 shadow-sm backdrop-blur-sm sm:flex-row sm:items-center sm:px-6">
-              <p className="text-sm text-muted-foreground">
-                {canCadastrar ? "Cadastrar ou editar hospitais e produtos" : "Acessar hospitais e produtos"}
-              </p>
-              <Button asChild size="sm" className="shrink-0 gap-1 rounded-full px-5">
-                <Link to="/hospitais">
-                  <Plus className="h-4 w-4" aria-hidden />
-                  Hospitais
-                </Link>
-              </Button>
-            </div>
-          ) : null}
 
           <div className="grid gap-6 lg:grid-cols-3">
             <div className="space-y-3 lg:col-span-2">
@@ -259,15 +216,6 @@ const PaginaInicial = () => {
                   >
                     <Palette className="h-5 w-5 text-sky-600 dark:text-sky-300" />
                     <span className="text-sm font-semibold">Cores</span>
-                  </Link>
-                ) : null}
-                {canHospitaisExtras ? (
-                  <Link
-                    to="/hospitais"
-                    className="flex flex-col gap-2 rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm transition duration-300 ease-out hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-md"
-                  >
-                    <BarChart3 className="h-5 w-5 text-orange-600 dark:text-orange-300" />
-                    <span className="text-sm font-semibold">Visão geral</span>
                   </Link>
                 ) : null}
               </div>

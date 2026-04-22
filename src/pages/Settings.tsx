@@ -20,42 +20,60 @@ const fileToBase64 = (file: File): Promise<string> =>
   });
 
 const SettingsPage = () => {
-  const { settings, updateSettings } = useProductStore(
-    useShallow((s) => ({ settings: s.settings, updateSettings: s.updateSettings })),
+  const { settings, updateSettings, isLoading: productLoading } = useProductStore(
+    useShallow((s) => ({
+      settings: s.settings,
+      updateSettings: s.updateSettings,
+      isLoading: s.isLoading,
+    })),
   );
   const [localSettings, setLocalSettings] = useState({
     nomeEmpresa: settings.nomeEmpresa,
     slogan: settings.slogan,
   });
+  /** Só preenche nome/slogan a partir do servidor na primeira carga (não apaga edições ao mudar só a logo). */
+  const [formHydrated, setFormHydrated] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const canAccess = useAuthStore((state) => state.canAccess);
 
   useEffect(() => {
+    if (productLoading || formHydrated) return;
     setLocalSettings({
       nomeEmpresa: settings.nomeEmpresa,
       slogan: settings.slogan,
     });
-  }, [settings]);
+    setFormHydrated(true);
+  }, [productLoading, settings.nomeEmpresa, settings.slogan, formHydrated]);
 
   const handleSave = async () => {
     setIsSaving(true);
     try {
       await updateSettings(localSettings);
-      toast({ title: "Configurações salvas!" });
-    } catch (error) {
-      toast({ title: "Erro ao salvar configurações", variant: "destructive" });
+      toast({ title: "Configurações guardadas" });
+    } catch (e: unknown) {
+      const msg =
+        e && typeof e === "object" && "message" in e
+          ? String((e as { message: string }).message)
+          : "Tente de novo ou verifique a ligação ao servidor.";
+      toast({ title: "Não foi possível guardar", description: msg, variant: "destructive" });
     } finally {
       setIsSaving(false);
     }
   };
 
-  const onDrop = useCallback(async (files: File[]) => {
-    if (files[0]) {
-      const b64 = await fileToBase64(files[0]);
-      await updateSettings({ logo: b64 });
-      toast({ title: "Logo atualizado!" });
-    }
-  }, [updateSettings]);
+  const onDrop = useCallback(
+    async (files: File[]) => {
+      if (!files[0]) return;
+      try {
+        const b64 = await fileToBase64(files[0]);
+        await updateSettings({ logo: b64 });
+        toast({ title: "Logo guardado" });
+      } catch {
+        toast({ title: "Não foi possível guardar o logo", variant: "destructive" });
+      }
+    },
+    [updateSettings],
+  );
 
   const { getRootProps, getInputProps } = useDropzone({
     onDrop,
@@ -99,10 +117,18 @@ const SettingsPage = () => {
             {settings.logo ? (
               <div className="flex flex-col items-start gap-4">
                 <img src={settings.logo} alt="Logo" className="h-28 max-w-64 object-contain rounded border p-2 bg-background" />
-                <Button variant="outline" size="sm" onClick={async () => {
-                  await updateSettings({ logo: "" });
-                  toast({ title: "Logo removido!" });
-                }}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    try {
+                      await updateSettings({ logo: "" });
+                      toast({ title: "Logo removido" });
+                    } catch {
+                      toast({ title: "Não foi possível remover o logo", variant: "destructive" });
+                    }
+                  }}
+                >
                   <X className="mr-1 h-3 w-3" /> Remover
                 </Button>
               </div>

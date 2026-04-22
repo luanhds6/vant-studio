@@ -328,10 +328,11 @@ export const useProductStore = create<ProductStore>((set, get) => ({
           throw updateError;
         }
       } else {
-        const { error: insertError } = await supabase.from('company_settings').insert({
+        const { error: insertError } = await supabase.from("company_settings").insert({
+          id: crypto.randomUUID(),
           logo: updated.logo,
           nome_empresa: updated.nomeEmpresa,
-          slogan: updated.slogan
+          slogan: updated.slogan,
         });
 
         if (insertError) {

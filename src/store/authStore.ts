@@ -21,9 +21,17 @@ interface AuthState {
   login: (email: string, pass: string) => Promise<{ success: boolean; message: string }>;
   logout: () => Promise<void>;
   initialize: () => Promise<void>;
-  addUser: (user: Omit<User, 'id' | 'createdAt'>) => Promise<void>;
+  addUser: (user: Omit<User, "id" | "createdAt">) => Promise<void>;
   updateUser: (id: string, updates: Partial<User>) => Promise<void>;
   deleteUser: (id: string) => Promise<void>;
+  /** O próprio utilizador: nome, e-mail, foto (tabela public.profiles + Auth se o e-mail mudar). */
+  updateOwnProfile: (payload: {
+    name: string;
+    email: string;
+    profilePhoto?: string;
+  }) => Promise<{ success: boolean; message: string }>;
+  /** Revalida a senha atual e define uma nova. */
+  changeOwnPassword: (currentPassword: string, newPassword: string) => Promise<{ success: boolean; message: string }>;
   canAccess: (permission: PermissionKey) => boolean;
   fetchUsers: () => Promise<void>;
 }
@@ -225,7 +233,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   updateUser: async (id, updates) => {
     const { error } = await supabase
-      .from('profiles')
+      .from("profiles")
       .update({
         name: updates.name,
         role: updates.role,
@@ -233,14 +241,94 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         profile_photo: updates.profilePhoto,
         must_change_password: updates.mustChangePassword,
       })
-      .eq('id', id);
+      .eq("id", id);
 
     if (error) {
-      console.error('Error updating user:', error);
+      console.error("Error updating user:", error);
       throw error;
     }
-    
+
     get().fetchUsers();
+  },
+
+  updateOwnProfile: async (payload) => {
+    const { currentUser } = get();
+    if (!currentUser) {
+      return { success: false, message: "Sessão inválida. Entre novamente." };
+    }
+
+    const name = payload.name.trim();
+    const email = payload.email.trim();
+    const profilePhoto = payload.profilePhoto ?? "";
+
+    if (!name || !email) {
+      return { success: false, message: "Nome e e-mail são obrigatórios." };
+    }
+
+    try {
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update({
+          name,
+          email,
+          profile_photo: profilePhoto || null,
+        })
+        .eq("id", currentUser.id);
+
+      if (profileError) {
+        console.error("Erro ao guardar perfil:", profileError);
+        return { success: false, message: profileError.message || "Não foi possível guardar o perfil." };
+      }
+
+      if (email.toLowerCase() !== currentUser.email.toLowerCase()) {
+        const { error: emailError } = await supabase.auth.updateUser({ email });
+        if (emailError) {
+          return {
+            success: false,
+            message: emailError.message || "E-mail: confirme na caixa de entrada ou tente de novo.",
+          };
+        }
+      }
+
+      set({
+        currentUser: {
+          ...currentUser,
+          name,
+          email,
+          profilePhoto,
+        },
+      });
+
+      return { success: true, message: "ok" };
+    } catch (err) {
+      console.error("updateOwnProfile:", err);
+      return { success: false, message: "Erro inesperado ao guardar o perfil." };
+    }
+  },
+
+  changeOwnPassword: async (currentPassword, newPassword) => {
+    const { currentUser } = get();
+    if (!currentUser) {
+      return { success: false, message: "Sessão inválida. Entre novamente." };
+    }
+    if (newPassword.length < 6) {
+      return { success: false, message: "A nova senha deve ter pelo menos 6 caracteres." };
+    }
+
+    const { error: signErr } = await supabase.auth.signInWithPassword({
+      email: currentUser.email,
+      password: currentPassword,
+    });
+    if (signErr) {
+      return { success: false, message: "Senha atual incorreta." };
+    }
+
+    const { error: updErr } = await supabase.auth.updateUser({ password: newPassword });
+    if (updErr) {
+      return { success: false, message: updErr.message || "Não foi possível alterar a senha." };
+    }
+
+    return { success: true, message: "ok" };
   },
 
   deleteUser: async (id) => {
