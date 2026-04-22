@@ -1,6 +1,7 @@
-import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { useAuthStore } from "@/store/authStore";
 import { AppLayout } from "./AppLayout";
+import { PageTransition } from "./PageTransition";
 
 export function ProtectedLayout() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -12,7 +13,7 @@ export function ProtectedLayout() {
 
   return (
     <AppLayout>
-      <Outlet />
+      <PageTransition />
     </AppLayout>
   );
 }

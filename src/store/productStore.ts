@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { supabase } from "@/lib/supabase";
-import { Product, CompanySettings, Hospital } from "@/types/Product";
+import { Product, CompanySettings, Hospital, type BaseColor } from "@/types/Product";
 
 const defaultSettings: CompanySettings = {
   logo: "",
@@ -36,6 +36,22 @@ interface ProductStore {
   getProduct: (id: string) => Product | undefined;
 }
 
+const REALTIME_DEBOUNCE_MS = 400;
+
+let realtimeSubscribed = false;
+let realtimeDebounce: ReturnType<typeof setTimeout> | null = null;
+let fetchInflight: Promise<void> | null = null;
+
+function scheduleRealtimeRefetch(get: () => ProductStore) {
+  if (realtimeDebounce) {
+    clearTimeout(realtimeDebounce);
+  }
+  realtimeDebounce = setTimeout(() => {
+    realtimeDebounce = null;
+    void get().fetchData();
+  }, REALTIME_DEBOUNCE_MS);
+}
+
 export const useProductStore = create<ProductStore>((set, get) => ({
   hospitals: [],
   products: [],
@@ -47,51 +63,49 @@ export const useProductStore = create<ProductStore>((set, get) => ({
     try {
       await get().fetchData();
 
-      // Subscribe to hospitals
-      supabase
-        .channel('public:hospitals')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'hospitals' }, () => {
-          get().fetchData();
-        })
-        .subscribe((status) => {
-          if (status === 'CHANNEL_ERROR') console.error('Erro na subscrição Realtime: hospitals');
-        });
+      /* Um único canal + debounce: evita canais Realtime em duplicado (Strict Mode / re-init) e
+         rajadas de fetch a cada evento. */
+      if (realtimeSubscribed) return;
+      realtimeSubscribed = true;
 
-      // Subscribe to products
-      supabase
-        .channel('public:products')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
-          get().fetchData();
-        })
+      const channel = supabase
+        .channel("app-data-listeners")
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "hospitals" },
+          () => scheduleRealtimeRefetch(get),
+        )
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "products" },
+          () => scheduleRealtimeRefetch(get),
+        )
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "company_settings" },
+          () => scheduleRealtimeRefetch(get),
+        )
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "colors" },
+          () => scheduleRealtimeRefetch(get),
+        )
         .subscribe((status) => {
-          if (status === 'CHANNEL_ERROR') console.error('Erro na subscrição Realtime: products');
+          if (status === "CHANNEL_ERROR") {
+            console.error("Erro na subscrição Realtime (app-data-listeners)");
+          }
         });
-
-      // Subscribe to settings
-      supabase
-        .channel('public:company_settings')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'company_settings' }, () => {
-          get().fetchData();
-        })
-        .subscribe((status) => {
-          if (status === 'CHANNEL_ERROR') console.error('Erro na subscrição Realtime: company_settings');
-        });
-
-      // Subscribe to colors
-      supabase
-        .channel('public:colors')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'colors' }, () => {
-          get().fetchData();
-        })
-        .subscribe((status) => {
-          if (status === 'CHANNEL_ERROR') console.error('Erro na subscrição Realtime: colors');
-        });
+      void channel;
     } catch (err) {
-      console.error('Erro ao inicializar subscrições Realtime:', err);
+      console.error("Erro ao inicializar subscrições Realtime:", err);
     }
   },
 
   fetchData: async () => {
+    if (fetchInflight) {
+      return fetchInflight;
+    }
+    fetchInflight = (async () => {
     try {
       const [hospitalsRes, productsRes, settingsRes, colorsRes] = await Promise.all([
         supabase.from('hospitals').select('*').order('created_at', { ascending: true }),
@@ -151,7 +165,11 @@ export const useProductStore = create<ProductStore>((set, get) => ({
     } catch (err) {
       console.error("Critical error in fetchData:", err);
       set({ isLoading: false });
+    } finally {
+      fetchInflight = null;
     }
+    })();
+    return fetchInflight;
   },
 
   addHospital: async (h) => {

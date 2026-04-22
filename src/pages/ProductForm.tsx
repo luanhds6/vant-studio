@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useShallow } from "zustand/react/shallow";
 import { useProductStore } from "@/store/productStore";
 import { useAuthStore } from "@/store/authStore";
 import { getDefaultLandingPath } from "@/lib/routeAccess";
@@ -47,7 +48,15 @@ const ProductForm = () => {
   const { hospitalId, id } = useParams<{ hospitalId: string; id: string }>();
   const navigate = useNavigate();
   const canAccess = useAuthStore((s) => s.canAccess);
-  const { addProduct, updateProduct, getProduct, getHospital, colors: availableColors } = useProductStore();
+  const { addProduct, updateProduct, getProduct, getHospital, availableColors } = useProductStore(
+    useShallow((s) => ({
+      addProduct: s.addProduct,
+      updateProduct: s.updateProduct,
+      getProduct: s.getProduct,
+      getHospital: s.getHospital,
+      availableColors: s.colors,
+    })),
+  );
   const isEditing = Boolean(id);
 
   const [form, setForm] = useState<Omit<Product, "id" | "createdAt" | "updatedAt">>(emptyProduct);

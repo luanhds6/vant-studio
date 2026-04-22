@@ -80,10 +80,15 @@ export default {
             height: "0",
           },
         },
+        "vant-fade-up": {
+          from: { opacity: "0", transform: "translateY(10px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "vant-fade-up": "vant-fade-up 0.4s ease-out both",
       },
     },
   },

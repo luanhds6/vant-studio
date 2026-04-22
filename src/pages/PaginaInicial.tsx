@@ -5,17 +5,72 @@ import { useAuthStore } from "@/store/authStore";
 import { canCadastrarHospitais, canDownloadCatalogPdf, canShowHospitaisExtrasFromHome } from "@/lib/routeAccess";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { BookOpen, Building2, ChevronRight } from "lucide-react";
+import {
+  BarChart3,
+  BookOpen,
+  Building2,
+  ChevronRight,
+  Factory,
+  Package,
+  Palette,
+  Plus,
+  Sparkles,
+} from "lucide-react";
+
+function StatCard({
+  label,
+  value,
+  icon: Icon,
+  tint,
+}: {
+  label: string;
+  value: number;
+  icon: typeof Building2;
+  tint: "orange" | "violet" | "emerald" | "sky";
+}) {
+  const rings = {
+    orange: "from-orange-400/25 to-amber-400/10 text-orange-600 dark:text-orange-300",
+    violet: "from-violet-400/25 to-purple-400/10 text-violet-600 dark:text-violet-300",
+    emerald: "from-emerald-400/25 to-teal-400/10 text-emerald-600 dark:text-emerald-300",
+    sky: "from-sky-400/25 to-blue-400/10 text-sky-600 dark:text-sky-300",
+  }[tint];
+
+  return (
+    <Card className="group overflow-hidden transition duration-300 ease-out hover:-translate-y-0.5 hover:shadow-lg">
+      <CardContent className="flex flex-col gap-3 p-5">
+        <div className={`flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br ${rings}`}>
+          <Icon className="h-5 w-5" aria-hidden />
+        </div>
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+          <p className="font-['Space_Grotesk',sans-serif] text-3xl font-bold tabular-nums text-foreground">{value}</p>
+        </div>
+        <div className="h-8 w-full opacity-70 transition group-hover:opacity-100" aria-hidden>
+          <svg viewBox="0 0 120 32" className="h-full w-full text-primary/40" preserveAspectRatio="none">
+            <path
+              d="M0 24 L20 18 L40 22 L60 10 L80 14 L100 6 L120 12"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          </svg>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 /**
  * Página inicial: lista hospitais; com acesso ao módulo hospitais abre o catálogo/PDF; senão, o hub.
- * Cadastro/exclusão de unidades exige «Página inicial»; produtos em /hospitais → abrir hospital.
  */
 const PaginaInicial = () => {
   const navigate = useNavigate();
   const canAccess = useAuthStore((s) => s.canAccess);
   const hospitals = useProductStore((s) => s.hospitals);
   const products = useProductStore((s) => s.products);
+  const colors = useProductStore((s) => s.colors);
 
   const canCadastrar = canCadastrarHospitais(canAccess);
   const canHospitaisExtras = canShowHospitaisExtrasFromHome(canAccess);
@@ -34,16 +89,30 @@ const PaginaInicial = () => {
     return (hid: string) => map.get(hid) ?? 0;
   }, [products]);
 
+  const featured = hospitals[0];
+  const firstCatalogHospitalId = hospitals[0]?.id;
+
   return (
-    <div className="mx-auto max-w-3xl space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Página inicial</h1>
-      </div>
+    <div className="mx-auto max-w-6xl space-y-10 pb-12">
+      <header className="space-y-2">
+        <div className="flex items-center gap-2">
+          <span className="h-1 w-10 rounded-full bg-gradient-to-r from-primary to-orange-400" aria-hidden />
+          <span className="text-xs font-semibold uppercase tracking-widest text-primary/90">Vant Studio</span>
+        </div>
+        <h1 className="font-['Space_Grotesk',sans-serif] text-3xl font-bold tracking-tight text-foreground md:text-4xl">
+          Página inicial
+        </h1>
+        <p className="max-w-2xl text-sm text-muted-foreground md:text-base">
+          Gere catálogos, organize unidades e produtos com uma experiência leve e fluida.
+        </p>
+      </header>
 
       {hospitals.length === 0 ? (
-        <Card className="border-dashed">
-          <CardContent className="flex flex-col items-center justify-center gap-4 py-16 text-center">
-            <Building2 className="h-12 w-12 text-muted-foreground" />
+        <Card className="border-dashed border-primary/25 bg-card/60">
+          <CardContent className="flex flex-col items-center justify-center gap-5 py-20 text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/15 to-orange-400/10">
+              <Building2 className="h-8 w-8 text-primary" />
+            </div>
             <p className="max-w-md text-muted-foreground">
               {canCadastrar
                 ? "Ainda não há hospitais cadastrados. Cadastre-os na página de Hospitais para passarem a aparecer aqui."
@@ -61,47 +130,151 @@ const PaginaInicial = () => {
           </CardContent>
         </Card>
       ) : (
-        <ul className="space-y-3">
-          {hospitals.map((h) => (
-            <li key={h.id}>
-              <Card className="transition-shadow hover:shadow-md">
-                <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-                  <button
-                    type="button"
-                    className="min-w-0 flex-1 text-left"
-                    onClick={() => openHospital(h.id)}
-                  >
-                    <div className="flex items-center gap-2 font-semibold text-foreground">
-                      <Building2 className="h-4 w-4 shrink-0 text-primary" />
-                      <span className="truncate">{h.nome}</span>
-                      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    </div>
-                    {h.cidade ? <p className="mt-1 text-sm text-muted-foreground">{h.cidade}</p> : null}
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {countByHospital(h.id)} produto{countByHospital(h.id) !== 1 ? "s" : ""}
-                      {canCatalogo ? " · abre a geração do catálogo (PDF)" : " · abre o hospital (produtos e ações permitidas)"}
-                    </p>
-                  </button>
-                  <div className="flex shrink-0 flex-wrap gap-2">
-                    <Button variant="default" size="sm" onClick={() => openHospital(h.id)}>
-                      <BookOpen className="mr-2 h-4 w-4" />
-                      {canCatalogo ? "Gerar catálogo" : "Abrir hospital"}
-                    </Button>
+        <>
+          {featured ? (
+            <Card className="relative overflow-hidden border-primary/15 bg-gradient-to-br from-card/95 via-card/90 to-orange-50/40 shadow-lg dark:to-orange-950/20">
+              <div className="pointer-events-none absolute -right-8 -top-8 h-40 w-40 rounded-full bg-primary/10 blur-3xl" />
+              <CardContent className="relative flex flex-col gap-6 p-6 md:flex-row md:items-center md:justify-between md:p-8">
+                <div className="min-w-0 space-y-2">
+                  <div className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
+                    <Sparkles className="h-3.5 w-3.5" aria-hidden />
+                    Destaque
                   </div>
-                </CardContent>
-              </Card>
-            </li>
-          ))}
-        </ul>
-      )}
+                  <h2 className="font-['Space_Grotesk',sans-serif] text-2xl font-bold tracking-tight md:text-3xl">
+                    {featured.nome}
+                  </h2>
+                  {featured.cidade ? (
+                    <p className="text-sm text-muted-foreground md:text-base">{featured.cidade}</p>
+                  ) : null}
+                  <p className="text-sm text-muted-foreground">
+                    {countByHospital(featured.id)} produto{countByHospital(featured.id) !== 1 ? "s" : ""}
+                    {canCatalogo ? " · pronto para gerar o catálogo em PDF" : " · abra a unidade para ver produtos e ações"}
+                  </p>
+                </div>
+                <Button size="lg" className="shrink-0 shadow-orange-500/25" onClick={() => openHospital(featured.id)}>
+                  <BookOpen className="h-4 w-4" aria-hidden />
+                  {canCatalogo ? "Gerar catálogo" : "Abrir hospital"}
+                </Button>
+              </CardContent>
+            </Card>
+          ) : null}
 
-      {canHospitaisExtras && hospitals.length > 0 ? (
-        <p className="text-center text-sm text-muted-foreground">
-          <Link to="/hospitais" className="font-medium text-primary underline-offset-4 hover:underline">
-            {canCadastrar ? "Cadastrar ou editar hospitais e produtos" : "Ir para Hospitais e produtos"}
-          </Link>
-        </p>
-      ) : null}
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <StatCard label="Hospitais" value={hospitals.length} icon={Building2} tint="orange" />
+            <StatCard label="Produtos" value={products.length} icon={Package} tint="violet" />
+            <StatCard
+              label="Unidades com produto"
+              value={hospitals.filter((h) => countByHospital(h.id) > 0).length}
+              icon={Factory}
+              tint="emerald"
+            />
+            <StatCard label="Cores cadastradas" value={colors.length} icon={Palette} tint="sky" />
+          </div>
+
+          {canHospitaisExtras ? (
+            <div className="flex flex-col items-stretch justify-between gap-4 rounded-2xl border border-border/50 bg-card/70 p-4 shadow-sm backdrop-blur-sm sm:flex-row sm:items-center sm:px-6">
+              <p className="text-sm text-muted-foreground">
+                {canCadastrar ? "Cadastrar ou editar hospitais e produtos" : "Acessar hospitais e produtos"}
+              </p>
+              <Button asChild size="sm" className="shrink-0 gap-1 rounded-full px-5">
+                <Link to="/hospitais">
+                  <Plus className="h-4 w-4" aria-hidden />
+                  Hospitais
+                </Link>
+              </Button>
+            </div>
+          ) : null}
+
+          <div className="grid gap-6 lg:grid-cols-3">
+            <div className="space-y-3 lg:col-span-2">
+              <h3 className="font-['Space_Grotesk',sans-serif] text-lg font-semibold tracking-tight">Unidades</h3>
+              <ul className="space-y-3">
+                {hospitals.map((h) => (
+                  <li key={h.id}>
+                    <Card className="transition duration-300 ease-out hover:-translate-y-0.5 hover:shadow-md">
+                      <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+                        <button
+                          type="button"
+                          className="min-w-0 flex-1 text-left transition hover:opacity-95"
+                          onClick={() => openHospital(h.id)}
+                        >
+                          <div className="flex items-center gap-2 font-semibold text-foreground">
+                            <Building2 className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+                            <span className="truncate">{h.nome}</span>
+                            <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                          </div>
+                          {h.cidade ? <p className="mt-1 text-sm text-muted-foreground">{h.cidade}</p> : null}
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {countByHospital(h.id)} produto{countByHospital(h.id) !== 1 ? "s" : ""}
+                            {canCatalogo ? " · catálogo PDF" : " · hub da unidade"}
+                          </p>
+                        </button>
+                        <div className="flex shrink-0 flex-wrap gap-2">
+                          <Button variant="default" size="sm" onClick={() => openHospital(h.id)}>
+                            <BookOpen className="mr-2 h-4 w-4" aria-hidden />
+                            {canCatalogo ? "Gerar catálogo" : "Abrir"}
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="space-y-4">
+              <h3 className="font-['Space_Grotesk',sans-serif] text-lg font-semibold tracking-tight">Atalhos rápidos</h3>
+              <div className="grid grid-cols-2 gap-3">
+                {canCadastrar ? (
+                  <Link
+                    to="/hospitais"
+                    className="flex flex-col gap-2 rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm transition duration-300 ease-out hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-md"
+                  >
+                    <Building2 className="h-5 w-5 text-primary" />
+                    <span className="text-sm font-semibold">Novo hospital</span>
+                  </Link>
+                ) : null}
+                {canAccess("novo_produto") || canAccess("produtos") ? (
+                  <Link
+                    to="/cadastro-produtos"
+                    className="flex flex-col gap-2 rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm transition duration-300 ease-out hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-md"
+                  >
+                    <Package className="h-5 w-5 text-violet-600 dark:text-violet-300" />
+                    <span className="text-sm font-semibold">Cadastro de produtos</span>
+                  </Link>
+                ) : null}
+                {canCatalogo && firstCatalogHospitalId ? (
+                  <Link
+                    to={`/hospital/${firstCatalogHospitalId}/catalogo`}
+                    className="flex flex-col gap-2 rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm transition duration-300 ease-out hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-md"
+                  >
+                    <BookOpen className="h-5 w-5 text-emerald-600 dark:text-emerald-300" />
+                    <span className="text-sm font-semibold">Gerar catálogo</span>
+                  </Link>
+                ) : null}
+                {canAccess("configuracoes") || canAccess("novo_produto") ? (
+                  <Link
+                    to="/cores"
+                    className="flex flex-col gap-2 rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm transition duration-300 ease-out hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-md"
+                  >
+                    <Palette className="h-5 w-5 text-sky-600 dark:text-sky-300" />
+                    <span className="text-sm font-semibold">Cores</span>
+                  </Link>
+                ) : null}
+                {canHospitaisExtras ? (
+                  <Link
+                    to="/hospitais"
+                    className="flex flex-col gap-2 rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm transition duration-300 ease-out hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-md"
+                  >
+                    <BarChart3 className="h-5 w-5 text-orange-600 dark:text-orange-300" />
+                    <span className="text-sm font-semibold">Visão geral</span>
+                  </Link>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 };

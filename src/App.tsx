@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 import { BrowserRouter, Route, Routes, Navigate, useParams } from "react-router-dom";
@@ -9,7 +9,6 @@ import PaginaInicial from "./pages/PaginaInicial";
 import HospitalsPage from "./pages/HospitalsPage";
 import HospitalHub from "./pages/HospitalHub";
 import ProductForm from "./pages/ProductForm";
-import ProductCadastroPage from "./pages/ProductCadastroPage";
 import CatalogPreview from "./pages/CatalogPreview";
 import SettingsPage from "./pages/Settings";
 import ProfilePage from "./pages/Profile";
@@ -23,7 +22,37 @@ import { useProductStore } from "./store/productStore";
 import { PermissionKey } from "./lib/permissions";
 import { canAccessModuloHospitais, canAccessRouteHome, getDefaultLandingPath } from "./lib/routeAccess";
 
-const queryClient = new QueryClient();
+const ProductCadastroPage = lazy(() => import("./pages/ProductCadastroPage"));
+
+function CadastroProdutosFallback() {
+  return (
+    <div
+      className="mx-auto max-w-6xl space-y-6 p-1"
+      role="status"
+      aria-label="A carregar cadastro de produtos"
+    >
+      <div className="space-y-2">
+        <div className="h-9 w-44 max-w-full animate-pulse rounded-xl bg-muted/60" />
+        <div className="h-4 w-2/3 max-w-md animate-pulse rounded bg-muted/45" />
+      </div>
+      <div className="animate-pulse space-y-4 rounded-2xl border border-border/40 bg-card/50 p-6">
+        <div className="h-6 w-36 rounded bg-muted/55" />
+        <div className="h-10 w-full max-w-md rounded-lg bg-muted/40" />
+        <div className="h-40 w-full rounded-xl bg-muted/30" />
+      </div>
+    </div>
+  );
+}
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 60_000,
+      gcTime: 5 * 60_000,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 const RequirePermission = ({
   permission,
@@ -68,27 +97,38 @@ const SettingsRouteGate = () => {
 };
 
 const App = () => {
-  const { canAccess, initialize: initAuth, isLoading: authLoading } = useAuthStore();
-  const { initialize: initProducts, isLoading: productsLoading } = useProductStore();
+  const canAccess = useAuthStore((s) => s.canAccess);
+  const initAuth = useAuthStore((s) => s.initialize);
+  const authLoading = useAuthStore((s) => s.isLoading);
+  const initProducts = useProductStore((s) => s.initialize);
+  const productsLoading = useProductStore((s) => s.isLoading);
 
   useEffect(() => {
-    initAuth();
-    initProducts();
+    void initAuth();
+    void initProducts();
   }, [initAuth, initProducts]);
 
   const landingPath = getDefaultLandingPath(canAccess);
 
   if (authLoading || productsLoading) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-background">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+      <div className="relative flex h-screen w-screen items-center justify-center overflow-hidden bg-gradient-to-br from-sky-50 via-violet-50/80 to-orange-50/90 dark:from-slate-950 dark:via-violet-950/40 dark:to-slate-950">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,hsl(210_90%_88%/0.35),transparent_50%)] dark:bg-[radial-gradient(circle_at_30%_20%,hsl(260_40%_30%/0.25),transparent_50%)]" />
+        <div className="relative flex w-full max-w-sm flex-col gap-4 rounded-2xl border border-white/60 bg-white/70 p-8 shadow-xl shadow-slate-200/50 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/60 dark:shadow-black/40">
+          <div className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <div className="space-y-2">
+            <div className="h-3 w-3/4 animate-pulse rounded-lg bg-muted/80" />
+            <div className="h-3 w-1/2 animate-pulse rounded-lg bg-muted/60" />
+            <div className="h-3 w-[82%] animate-pulse rounded-lg bg-muted/50" />
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} storageKey="vant-ui-theme">
+      <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} storageKey="vant-ui-theme">
         <TooltipProvider>
           <Toaster />
           <Sonner />
@@ -132,7 +172,9 @@ const App = () => {
                   path="/cadastro-produtos"
                   element={
                     <RequireNovoOuProdutos>
-                      <ProductCadastroPage />
+                      <Suspense fallback={<CadastroProdutosFallback />}>
+                        <ProductCadastroPage />
+                      </Suspense>
                     </RequireNovoOuProdutos>
                   }
                 />

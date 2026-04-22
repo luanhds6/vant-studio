@@ -1,6 +1,6 @@
-import { create } from 'zustand';
-import { supabase } from '@/lib/supabase';
-import { PermissionKey, normalizePermissions, hasUserPermission } from '@/lib/permissions';
+import { create } from "zustand";
+import { supabase } from "@/lib/supabase";
+import { PermissionKey, hasUserPermission } from "@/lib/permissions";
 
 export interface User {
   id: string;
@@ -27,6 +27,8 @@ interface AuthState {
   canAccess: (permission: PermissionKey) => boolean;
   fetchUsers: () => Promise<void>;
 }
+
+let authStateListenerAttached = false;
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   isAuthenticated: false,
@@ -75,47 +77,52 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({ isAuthenticated: false, currentUser: null, isLoading: false });
       }
     } catch (err) {
-      console.error('Erro crítico na inicialização do sistema:', err);
+      console.error("Erro crítico na inicialização do sistema:", err);
       set({ isAuthenticated: false, currentUser: null, isLoading: false });
     }
 
-    // Listen for auth changes
-    supabase.auth.onAuthStateChange(async (event, session) => {
+    if (authStateListenerAttached) {
+      return;
+    }
+    authStateListenerAttached = true;
+
+    const { data: authSub } = supabase.auth.onAuthStateChange(async (event, session) => {
       try {
-        if (event === 'SIGNED_IN' && session?.user) {
+        if (event === "SIGNED_IN" && session?.user) {
           const { data: profile, error: profileError } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', session.user.id)
+            .from("profiles")
+            .select("*")
+            .eq("id", session.user.id)
             .maybeSingle();
 
           if (profileError) {
-            console.error('Erro ao carregar perfil após SIGNED_IN:', profileError.message, profileError);
+            console.error("Erro ao carregar perfil após SIGNED_IN:", profileError.message, profileError);
           }
 
           if (profile) {
             const user: User = {
               id: profile.id,
-              name: profile.name || '',
-              email: profile.email || session.user.email || '',
-              profilePhoto: profile.profile_photo || '',
-              role: profile.role as 'admin' | 'user',
+              name: profile.name || "",
+              email: profile.email || session.user.email || "",
+              profilePhoto: profile.profile_photo || "",
+              role: profile.role as "admin" | "user",
               mustChangePassword: profile.must_change_password || false,
               permissions: (profile.permissions as PermissionKey[]) || [],
               createdAt: profile.created_at,
             };
             set({ isAuthenticated: true, currentUser: user });
-            if (user.role === 'admin') {
+            if (user.role === "admin") {
               get().fetchUsers();
             }
           }
-        } else if (event === 'SIGNED_OUT') {
+        } else if (event === "SIGNED_OUT") {
           set({ isAuthenticated: false, currentUser: null, users: [] });
         }
       } catch (err) {
-        console.error('Erro no listener de autenticação:', err);
+        console.error("Erro no listener de autenticação:", err);
       }
     });
+    void authSub.subscription;
   },
 
   login: async (email, password) => {

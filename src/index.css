@@ -5,93 +5,94 @@
 @tailwind utilities;
 
 @layer base {
-  /* Modo claro: papel quente + laranja (primário do catálogo) */
+  /* Vant Studio — modo claro: glass leve, laranja coral, fundo fluido */
   :root {
     color-scheme: light;
 
-    --background: 32 28% 97%;
-    --foreground: 24 18% 12%;
+    --background: 210 38% 97%;
+    /* Texto principal mais denso (menos “lavado”) */
+    --foreground: 222 28% 8%;
 
-    --card: 35 25% 99%;
-    --card-foreground: 24 18% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 28% 8%;
 
-    --popover: 35 25% 99%;
-    --popover-foreground: 24 18% 12%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 28% 8%;
 
-    --primary: 24 95% 52%;
+    --primary: 22 95% 55%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 32 18% 92%;
-    --secondary-foreground: 24 16% 22%;
+    --secondary: 220 20% 94%;
+    --secondary-foreground: 222 22% 14%;
 
-    --muted: 32 14% 93%;
-    --muted-foreground: 24 10% 42%;
+    --muted: 220 16% 93%;
+    /* Secundário: mais legível sobre fundo claro */
+    --muted-foreground: 220 14% 30%;
 
-    --accent: 28 88% 48%;
+    --accent: 265 55% 58%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 32 14% 86%;
-    --input: 32 14% 86%;
-    --ring: 24 95% 52%;
+    --border: 220 14% 82%;
+    --input: 220 14% 82%;
+    --ring: 22 95% 55%;
 
-    --radius: 0.75rem;
+    --radius: 1rem;
 
-    --sidebar-background: 24 18% 14%;
-    --sidebar-foreground: 35 20% 92%;
-    --sidebar-primary: 24 95% 54%;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 222 24% 12%;
+    --sidebar-primary: 22 95% 54%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 24 14% 20%;
-    --sidebar-accent-foreground: 35 18% 94%;
-    --sidebar-border: 24 12% 22%;
-    --sidebar-ring: 24 95% 52%;
+    --sidebar-accent: 28 100% 96%;
+    --sidebar-accent-foreground: 22 90% 38%;
+    --sidebar-border: 220 14% 90%;
+    --sidebar-ring: 22 95% 55%;
   }
 
-  /* Modo escuro: slate + âmbar (login / Vant) */
+  /* Modo escuro: azulados / violeta — sem preto puro */
   .dark {
     color-scheme: dark;
 
-    --background: 222 47% 11%;
-    --foreground: 210 40% 98%;
+    --background: 232 28% 9%;
+    --foreground: 220 30% 96%;
 
-    --card: 222 35% 13%;
-    --card-foreground: 210 40% 98%;
+    --card: 232 26% 12%;
+    --card-foreground: 220 25% 96%;
 
-    --popover: 222 35% 12%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 232 26% 11%;
+    --popover-foreground: 220 25% 96%;
 
-    --primary: 43 96% 56%;
-    --primary-foreground: 222 47% 11%;
+    --primary: 28 92% 58%;
+    --primary-foreground: 232 28% 10%;
 
-    --secondary: 217 33% 17%;
-    --secondary-foreground: 210 40% 96%;
+    --secondary: 250 22% 18%;
+    --secondary-foreground: 220 20% 94%;
 
-    --muted: 217 25% 16%;
-    --muted-foreground: 215 20% 65%;
+    --muted: 240 18% 16%;
+    --muted-foreground: 220 14% 68%;
 
-    --accent: 43 90% 48%;
-    --accent-foreground: 222 47% 11%;
+    --accent: 265 45% 62%;
+    --accent-foreground: 232 28% 10%;
 
-    --destructive: 0 72% 50%;
+    --destructive: 0 65% 48%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 217 33% 22%;
-    --input: 217 33% 22%;
-    --ring: 43 96% 56%;
+    --border: 240 16% 22%;
+    --input: 240 16% 22%;
+    --ring: 28 92% 58%;
 
-    --sidebar-background: 222 47% 8%;
-    --sidebar-foreground: 210 40% 96%;
-    --sidebar-primary: 43 96% 56%;
-    --sidebar-primary-foreground: 222 47% 11%;
-    --sidebar-accent: 217 33% 15%;
-    --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 217 33% 18%;
-    --sidebar-ring: 43 96% 56%;
+    --sidebar-background: 232 26% 11%;
+    --sidebar-foreground: 220 25% 94%;
+    --sidebar-primary: 28 92% 58%;
+    --sidebar-primary-foreground: 232 28% 10%;
+    --sidebar-accent: 250 22% 17%;
+    --sidebar-accent-foreground: 220 22% 96%;
+    --sidebar-border: 240 14% 20%;
+    --sidebar-ring: 28 92% 58%;
   }
 
-  /* No modo escuro, a página Gerar Catálogo fica em “ilha” clara (papel / laranja) */
   .dark .catalog-surface {
     color-scheme: light;
 
@@ -125,17 +126,129 @@
   }
 }
 
+@keyframes vant-drift-blobs {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(2%, -1.5%) scale(1.03);
+  }
+}
+
+@layer components {
+  /* Fundo fluido + ondas (camadas fixas) */
+  .vant-app-bg {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+    background: linear-gradient(
+      155deg,
+      hsl(210 55% 96%) 0%,
+      hsl(265 42% 96%) 42%,
+      hsl(32 90% 96%) 100%
+    );
+  }
+
+  .vant-app-bg::before {
+    content: "";
+    position: absolute;
+    inset: -20%;
+    background:
+      radial-gradient(ellipse 55% 45% at 15% 25%, hsl(210 80% 88% / 0.55), transparent 55%),
+      radial-gradient(ellipse 50% 40% at 85% 15%, hsl(270 70% 90% / 0.45), transparent 50%),
+      radial-gradient(ellipse 45% 35% at 70% 85%, hsl(28 95% 86% / 0.5), transparent 55%);
+    animation: vant-drift-blobs 22s ease-in-out infinite;
+  }
+
+  .vant-app-bg::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    opacity: 0.35;
+    background-image: radial-gradient(hsl(220 40% 70% / 0.12) 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
+
+  .dark .vant-app-bg {
+    background: linear-gradient(
+      155deg,
+      hsl(232 30% 11%) 0%,
+      hsl(265 28% 10%) 45%,
+      hsl(220 32% 9%) 100%
+    );
+  }
+
+  .dark .vant-app-bg::before {
+    background:
+      radial-gradient(ellipse 55% 45% at 15% 25%, hsl(250 45% 24% / 0.5), transparent 55%),
+      radial-gradient(ellipse 50% 40% at 85% 15%, hsl(280 40% 22% / 0.4), transparent 50%),
+      radial-gradient(ellipse 45% 35% at 70% 85%, hsl(28 60% 22% / 0.25), transparent 55%);
+  }
+
+  .dark .vant-app-bg::after {
+    opacity: 0.2;
+    background-image: radial-gradient(hsl(220 30% 50% / 0.15) 1px, transparent 1px);
+  }
+
+  /* Painel da sidebar (glass) */
+  .vant-sidebar-inner {
+    -webkit-backdrop-filter: blur(22px);
+    backdrop-filter: blur(22px);
+    background: linear-gradient(180deg, hsl(0 0% 100% / 0.78), hsl(210 40% 99% / 0.62)) !important;
+    border-color: hsl(220 20% 88% / 0.65) !important;
+    box-shadow:
+      0 4px 24px -8px hsl(220 40% 50% / 0.12),
+      0 0 0 1px hsl(0 0% 100% / 0.5) inset;
+  }
+
+  .dark .vant-sidebar-inner {
+    background: linear-gradient(180deg, hsl(232 26% 15% / 0.88), hsl(250 24% 11% / 0.82)) !important;
+    border-color: hsl(240 14% 26% / 0.85) !important;
+    box-shadow:
+      0 4px 28px -10px hsl(0 0% 0% / 0.45),
+      0 0 0 1px hsl(255 25% 100% / 0.04) inset;
+  }
+
+  .vant-topbar-glass {
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+    background: hsl(var(--card) / 0.72);
+    border-color: hsl(var(--border) / 0.55);
+  }
+
+  .dark .vant-topbar-glass {
+    background: hsl(var(--card) / 0.55);
+  }
+
+  .vant-page-shell {
+    @apply animate-vant-fade-up;
+  }
+
+  /* Shell transparente para o fundo fluido aparecer */
+  .group\/sidebar-wrapper {
+    background-color: transparent !important;
+  }
+}
+
 @layer base {
   * {
     @apply border-border;
   }
 
   body {
-    @apply bg-background text-foreground;
-    font-family: 'Inter', sans-serif;
+    @apply bg-background text-foreground antialiased;
+    font-family: "Inter", system-ui, sans-serif;
   }
 
-  h1, h2, h3, h4, h5, h6 {
-    font-family: 'Space Grotesk', sans-serif;
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: "Space Grotesk", system-ui, sans-serif;
   }
 }

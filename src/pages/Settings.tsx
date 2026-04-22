@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { useProductStore } from "@/store/productStore";
 import { useAuthStore } from "@/store/authStore";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,7 +20,9 @@ const fileToBase64 = (file: File): Promise<string> =>
   });
 
 const SettingsPage = () => {
-  const { settings, updateSettings } = useProductStore();
+  const { settings, updateSettings } = useProductStore(
+    useShallow((s) => ({ settings: s.settings, updateSettings: s.updateSettings })),
+  );
   const [localSettings, setLocalSettings] = useState({
     nomeEmpresa: settings.nomeEmpresa,
     slogan: settings.slogan,

@@ -5,10 +5,12 @@ import { useProductStore } from "@/store/productStore";
 import { useAuthStore } from "@/store/authStore";
 import { canAccessRouteHome, getDefaultLandingPath } from "@/lib/routeAccess";
 import { cn } from "@/lib/utils";
-import { CatalogPage } from "@/components/catalog/CatalogPage";
+import { CatalogPage, type CatalogOrientation } from "@/components/catalog/CatalogPage";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ArrowLeft, Download, Eye, Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import html2canvas from "html2canvas";
@@ -45,6 +47,7 @@ const CatalogPreview = () => {
   const [selected, setSelected] = useState<string[]>([]);
   const [generating, setGenerating] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [catalogOrientation, setCatalogOrientation] = useState<CatalogOrientation>("portrait");
   const catalogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -85,31 +88,33 @@ const CatalogPreview = () => {
     await new Promise((r) => setTimeout(r, 500));
 
     try {
-      const pdf = new jsPDF("p", "mm", "a4");
+      const isLandscape = catalogOrientation === "landscape";
+      const pdf = new jsPDF(isLandscape ? "l" : "p", "mm", "a4");
+      const pdfWidth = isLandscape ? 297 : 210;
+      const pdfHeight = isLandscape ? 210 : 297;
       const pages = catalogRef.current?.querySelectorAll(".catalog-page");
 
       if (!pages) throw new Error("Sem páginas");
 
       for (let i = 0; i < pages.length; i++) {
-        console.log(`Iniciando captura da página ${i + 1}...`);
         const canvas = await html2canvas(pages[i] as HTMLElement, {
-          scale: 3, // Increased scale for better precision
+          scale: 3,
           useCORS: true,
           backgroundColor: "#ffffff",
           logging: false,
         });
 
         const imgData = canvas.toDataURL("image/jpeg", 1.0);
-        const pdfWidth = 210;
-        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+        const imgH = (canvas.height * pdfWidth) / canvas.width;
 
-        if (i > 0) pdf.addPage();
-        pdf.addImage(imgData, "JPEG", 0, 0, pdfWidth, pdfHeight);
+        if (i > 0) pdf.addPage("a4", isLandscape ? "l" : "p");
+        pdf.addImage(imgData, "JPEG", 0, 0, pdfWidth, imgH);
       }
 
       const hosp = slug(hospital.nome);
       const emp = slug(settings.nomeEmpresa || "empresa");
-      pdf.save(`catalogo-${hosp}-${emp}.pdf`);
+      const suf = isLandscape ? "paisagem" : "retrato";
+      pdf.save(`catalogo-${hosp}-${emp}-${suf}.pdf`);
       toast({ title: "PDF gerado com sucesso!" });
     } catch (err) {
       console.error(err);
@@ -137,18 +142,39 @@ const CatalogPreview = () => {
           <p className="text-sm font-medium text-muted-foreground">{hospital.nome}</p>
           <h1 className="text-3xl font-bold tracking-tight">Gerar catálogo</h1>
           <p className="mt-1 text-muted-foreground">
-            Selecione os produtos deste hospital (ou todos) e gere o PDF no mesmo formato de antes.
+            Escolha retrato (A4 vertical) ou paisagem (A4 horizontal), pré-visualize e baixe o PDF no formato selecionado.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => setShowPreview(!showPreview)} disabled={selectedProducts.length === 0}>
-            <Eye className="mr-2 h-4 w-4" />
-            {showPreview ? "Ocultar" : "Pré-visualizar"}
-          </Button>
-          <Button onClick={generatePDF} disabled={generating || selectedProducts.length === 0}>
-            {generating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-            {generating ? "Gerando..." : "Gerar PDF"}
-          </Button>
+        <div className="flex flex-col items-stretch gap-3 sm:items-end">
+          <div className="flex flex-col gap-2 sm:items-end">
+            <Label className="text-xs text-muted-foreground">Formato do PDF</Label>
+            <ToggleGroup
+              type="single"
+              variant="outline"
+              value={catalogOrientation}
+              onValueChange={(v) => {
+                if (v === "portrait" || v === "landscape") setCatalogOrientation(v);
+              }}
+              className="justify-end"
+            >
+              <ToggleGroupItem value="portrait" aria-label="Retrato A4">
+                Retrato
+              </ToggleGroupItem>
+              <ToggleGroupItem value="landscape" aria-label="Paisagem A4">
+                Paisagem
+              </ToggleGroupItem>
+            </ToggleGroup>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => setShowPreview(!showPreview)} disabled={selectedProducts.length === 0}>
+              <Eye className="mr-2 h-4 w-4" />
+              {showPreview ? "Ocultar" : "Pré-visualizar"}
+            </Button>
+            <Button onClick={generatePDF} disabled={generating || selectedProducts.length === 0}>
+              {generating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+              {generating ? "Gerando..." : "Gerar PDF"}
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -219,12 +245,14 @@ const CatalogPreview = () => {
 
       {showPreview && selectedProducts.length > 0 && (
         <div className="space-y-4">
-          <h2 className="text-xl font-semibold">Pré-visualização</h2>
+          <h2 className="text-xl font-semibold">
+            Pré-visualização — {catalogOrientation === "landscape" ? "A4 paisagem" : "A4 retrato"}
+          </h2>
           <div className="overflow-auto rounded-xl border bg-muted/30 p-4">
             <div ref={catalogRef} className="flex flex-col items-center gap-6">
               {selectedProducts.map((product) => (
                 <div key={product.id} className="shadow-lg">
-                  <CatalogPage product={product} settings={settings} />
+                  <CatalogPage product={product} settings={settings} orientation={catalogOrientation} />
                 </div>
               ))}
             </div>
@@ -233,10 +261,22 @@ const CatalogPreview = () => {
       )}
 
       {!showPreview && generating && (
-        <div style={{ position: "absolute", left: "-9999px", top: 0, width: "210mm" }}>
-          <div ref={catalogRef} style={{ width: "210mm" }}>
+        <div
+          style={{
+            position: "absolute",
+            left: "-9999px",
+            top: 0,
+            width: catalogOrientation === "landscape" ? "297mm" : "210mm",
+          }}
+        >
+          <div ref={catalogRef} style={{ width: catalogOrientation === "landscape" ? "297mm" : "210mm" }}>
             {selectedProducts.map((product) => (
-              <CatalogPage key={product.id} product={product} settings={settings} />
+              <CatalogPage
+                key={product.id}
+                product={product}
+                settings={settings}
+                orientation={catalogOrientation}
+              />
             ))}
           </div>
         </div>

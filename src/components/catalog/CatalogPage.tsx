@@ -1,146 +1,704 @@
+import type { CSSProperties, ReactNode } from "react";
 import { Product, CompanySettings } from "@/types/Product";
+
+export type CatalogOrientation = "portrait" | "landscape";
 
 interface CatalogPageProps {
   product: Product;
   settings: CompanySettings;
+  orientation?: CatalogOrientation;
 }
 
-export const CatalogPage = ({ product, settings }: CatalogPageProps) => {
+export const CatalogPage = ({
+  product,
+  settings,
+  orientation = "portrait",
+}: CatalogPageProps) => {
+  const isLandscape = orientation === "landscape";
+
+  const shellStyle: CSSProperties = {
+    width: isLandscape ? "297mm" : "210mm",
+    minHeight: isLandscape ? "210mm" : "297mm",
+    padding: isLandscape ? "6mm" : "8mm",
+    fontFamily: "Inter, Arial, Helvetica, sans-serif",
+    fontSize: isLandscape ? "10px" : "11px",
+    lineHeight: 1.35,
+    color: "#111111",
+    position: "relative",
+    pageBreakAfter: "always",
+    boxSizing: "border-box",
+    WebkitPrintColorAdjust: "exact",
+    printColorAdjust: "exact",
+  };
+
   return (
-    <div
-      className="catalog-page bg-white text-black"
-      style={{
-        width: "210mm",
-        minHeight: "297mm",
-        padding: "8mm",
-        fontFamily: "Inter, Arial, sans-serif",
-        fontSize: "10px",
-        position: "relative",
-        pageBreakAfter: "always",
-        boxSizing: "border-box",
-      }}
-    >
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6mm" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "4mm" }}>
+    <div className="catalog-page bg-white text-black" style={shellStyle}>
+      {isLandscape ? (
+        <CatalogLandscapeBody product={product} settings={settings} />
+      ) : (
+        <>
+          {/* Header */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6mm" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "4mm" }}>
+              {settings.logo ? (
+                <img src={settings.logo} alt="Logo" style={{ height: "14mm", maxWidth: "40mm", objectFit: "contain" }} />
+              ) : (
+                <div style={{
+                  width: "14mm", height: "14mm", borderRadius: "3mm",
+                  background: "#f97316", display: "flex", alignItems: "center", justifyContent: "center",
+                  color: "white", fontWeight: 700, fontSize: "16px", fontFamily: "Space Grotesk, sans-serif",
+                }}>
+                  VS
+                </div>
+              )}
+            </div>
+            <div style={{ fontSize: "9px", color: "#454545", fontWeight: 500, textAlign: "right", lineHeight: 1.4 }}>
+              {product.referencia && <div>Ref: {product.referencia}</div>}
+              {product.categoria && <div>{product.categoria}</div>}
+            </div>
+          </div>
+
+          {/* Product Name Banner */}
+          <div style={{
+            background: "#f97316",
+            color: "white",
+            padding: "3mm 5mm",
+            borderRadius: "2mm",
+            marginBottom: "5mm",
+            fontFamily: "Space Grotesk, sans-serif",
+            fontWeight: 700,
+            fontSize: "17px",
+            textTransform: "uppercase",
+            letterSpacing: "0.5px",
+          }}>
+            {product.nome}
+          </div>
+
+          {/* Main Content */}
+          <div style={{ display: "flex", gap: "5mm" }}>
+            <div style={{ flex: "1.2", minWidth: 0 }}>
+              {product.imagemPrincipal ? (
+                <div style={{
+                  border: "1px solid #b8b8b8", borderRadius: "2mm", padding: "3mm",
+                  background: "#f7f7f7", display: "flex", alignItems: "center", justifyContent: "center",
+                  minHeight: "80mm",
+                }}>
+                  <img
+                    src={product.imagemPrincipal}
+                    alt={product.nome}
+                    style={{
+                      maxWidth: "100%",
+                      maxHeight: "100mm",
+                      width: "auto",
+                      height: "auto",
+                      display: "block",
+                      objectFit: "contain",
+                    }}
+                  />
+                </div>
+              ) : (
+                <div style={{
+                  border: "1px dashed #b0b0b0", borderRadius: "2mm", padding: "10mm",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  minHeight: "80mm", color: "#555555", fontSize: "12px", fontWeight: 500,
+                }}>
+                  Desenho técnico
+                </div>
+              )}
+
+              {(product.dimensoes.largura || product.dimensoes.altura) && (
+                <div style={{ marginTop: "3mm", display: "flex", gap: "4mm", fontSize: "10px", color: "#111111", fontWeight: 500 }}>
+                  {product.dimensoes.largura && (
+                    <div style={{ padding: "2mm 3mm", background: "#eeeeee", borderRadius: "1mm", border: "1px solid #cfcfcf" }}>
+                      <strong>Largura:</strong> {product.dimensoes.largura} {product.dimensoes.unidade}
+                    </div>
+                  )}
+                  {product.dimensoes.altura && (
+                    <div style={{ padding: "2mm 3mm", background: "#eeeeee", borderRadius: "1mm", border: "1px solid #cfcfcf" }}>
+                      <strong>Altura:</strong> {product.dimensoes.altura} {product.dimensoes.unidade}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {product.detalhes.length > 0 && (
+                <div style={{ marginTop: "4mm" }}>
+                  <div style={{
+                    background: "#2a2a2a", color: "white", padding: "1.75mm 3mm",
+                    borderRadius: "1mm 1mm 0 0", fontSize: "9px", fontWeight: 700,
+                    textTransform: "uppercase", letterSpacing: "0.5px",
+                    minHeight: "6.5mm", display: "flex", alignItems: "center",
+                  }}>
+                    Detalhes Técnicos
+                  </div>
+                  <div style={{ border: "1px solid #c0c0c0", borderTop: "none", borderRadius: "0 0 1mm 1mm" }}>
+                    {product.detalhes.map((d, i) => (
+                      <div key={d.id} style={{
+                        padding: "2.25mm 3mm", fontSize: "10px", color: "#111111", lineHeight: 1.4,
+                        borderBottom: i < product.detalhes.length - 1 ? "1px solid #e2e2e2" : "none",
+                        display: "flex", alignItems: "center", gap: "2mm",
+                      }}>
+                        <div style={{ width: "4.5mm", height: "4.5mm", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <svg width="100%" height="100%" viewBox="0 0 20 20">
+                            <circle cx="10" cy="10" r="10" fill="#f97316" />
+                            <text x="50%" y="50%" dominantBaseline="central" textAnchor="middle" fill="white" fontSize="10" fontWeight="bold" fontFamily="Arial, sans-serif">
+                              {i + 1}
+                            </text>
+                          </svg>
+                        </div>
+                        {d.texto}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div style={{ flex: "0.8", display: "flex", flexDirection: "column", gap: "4mm" }}>
+              {product.tecido && (
+                <InfoSection title="TECIDO">
+                  <div style={{ padding: "2.25mm 3mm", fontSize: "11px", color: "#111111", fontWeight: 500, lineHeight: 1.4 }}>
+                    {product.tecido}
+                  </div>
+                </InfoSection>
+              )}
+              {product.tamanhos.length > 0 && (
+                <InfoSection title="TAMANHOS">
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "2mm", padding: "2mm 3mm" }}>
+                    {product.tamanhos.map((t) => (
+                      <span key={t} style={{
+                        padding: "1.25mm 3mm", background: "#eeeeee", borderRadius: "1mm",
+                        fontSize: "10px", fontWeight: 600, color: "#111111", border: "1px solid #cfcfcf",
+                      }}>
+                        {t}
+                      </span>
+                    ))}
+                  </div>
+                </InfoSection>
+              )}
+              {product.cores.length > 0 && (
+                <InfoSection title="CORES">
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "2mm", padding: "2mm 3mm", alignItems: "center" }}>
+                    {product.cores.map((c) => (
+                      <div key={c.id} style={{ display: "flex", alignItems: "center", gap: "1.5mm" }}>
+                        <div style={{
+                          width: "4.5mm", height: "4.5mm", borderRadius: "50%",
+                          background: c.hex, border: "1px solid #999999",
+                        }} />
+                        <span style={{ fontSize: "9px", fontWeight: 600, color: "#111111" }}>{c.nome}</span>
+                      </div>
+                    ))}
+                  </div>
+                </InfoSection>
+              )}
+              {(product.pintura.imagem || product.pintura.cor || product.pintura.tamanho || product.pintura.localizacao) && (
+                <InfoSection title="PINTURA">
+                  {product.pintura.imagem && (
+                    <div style={{
+                      padding: "2mm 3mm",
+                      display: "flex",
+                      justifyContent: "center",
+                      alignItems: "center",
+                      width: "100%",
+                      boxSizing: "border-box",
+                      height: "38mm",
+                      background: "#f7f7f7",
+                      border: "1px solid #c5c5c5",
+                      borderRadius: "1mm",
+                    }}>
+                      <img
+                        src={product.pintura.imagem}
+                        alt="Pintura do produto"
+                        style={{
+                          maxWidth: "100%",
+                          maxHeight: "100%",
+                          width: "auto",
+                          height: "auto",
+                          display: "block",
+                          objectFit: "contain",
+                          flexShrink: 0,
+                          alignSelf: "center",
+                        }}
+                      />
+                    </div>
+                  )}
+                  <InfoRow label="Cor" value={product.pintura.cor} />
+                  <InfoRow label="Tamanho" value={product.pintura.tamanho} />
+                  <InfoRow label="Localização" value={product.pintura.localizacao} />
+                </InfoSection>
+              )}
+              {(product.marcaCliente.imagem || product.marcaCliente.cor || product.marcaCliente.tamanho || product.marcaCliente.localizacao) && (
+                <InfoSection title="MARCA DO CLIENTE">
+                  {product.marcaCliente.imagem && (
+                    <div style={{ padding: "2mm 3mm 1mm", display: "flex", justifyContent: "center" }}>
+                      <img
+                        src={product.marcaCliente.imagem}
+                        alt="Marca do cliente"
+                        style={{
+                          maxWidth: "100%",
+                          maxHeight: "22mm",
+                          width: "auto",
+                          height: "auto",
+                          display: "block",
+                          objectFit: "contain",
+                          border: "1px solid #c5c5c5",
+                          borderRadius: "1mm",
+                          background: "#f7f7f7",
+                        }}
+                      />
+                    </div>
+                  )}
+                  <InfoRow label="Cor" value={product.marcaCliente.cor} />
+                  <InfoRow label="Tamanho" value={product.marcaCliente.tamanho} />
+                  <InfoRow label="Localização" value={product.marcaCliente.localizacao} />
+                </InfoSection>
+              )}
+              {(product.nomeCampo.texto || product.nomeCampo.cor || product.nomeCampo.tamanho) && (
+                <InfoSection title="NOME DO CAMPO">
+                  {product.nomeCampo.texto && (
+                    <div style={{ padding: "2.25mm 3mm", fontSize: "10px", color: "#111111", fontWeight: 500, lineHeight: 1.4 }}>
+                      {product.nomeCampo.texto}
+                    </div>
+                  )}
+                  <InfoRow label="Cor" value={product.nomeCampo.cor} />
+                  <InfoRow label="Tamanho" value={product.nomeCampo.tamanho} />
+                </InfoSection>
+              )}
+              {product.timbrado?.ativo && product.timbrado?.imagem && (
+                <InfoSection title="TIMBRADO">
+                  <div style={{ padding: "2mm 3mm", display: "flex", justifyContent: "center" }}>
+                    <img
+                      src={product.timbrado.imagem}
+                      alt="Timbrado"
+                      style={{
+                        maxWidth: "100%",
+                        maxHeight: "22mm",
+                        width: "auto",
+                        height: "auto",
+                        display: "block",
+                        objectFit: "contain",
+                        border: "1px solid #c5c5c5",
+                        borderRadius: "1mm",
+                        background: "#f7f7f7",
+                      }}
+                    />
+                  </div>
+                </InfoSection>
+              )}
+              {product.rastreavel?.ativo && product.rastreavel?.imagem && (
+                <InfoSection title="RASTREÁVEL">
+                  <div style={{ padding: "2mm 3mm", display: "flex", justifyContent: "center" }}>
+                    <img
+                      src={product.rastreavel.imagem}
+                      alt="Rastreamento"
+                      style={{
+                        maxWidth: "100%",
+                        maxHeight: "22mm",
+                        width: "auto",
+                        height: "auto",
+                        display: "block",
+                        objectFit: "contain",
+                        border: "1px solid #c5c5c5",
+                        borderRadius: "1mm",
+                        background: "#f7f7f7",
+                      }}
+                    />
+                  </div>
+                </InfoSection>
+              )}
+            </div>
+          </div>
+
+          {product.imagensDetalhe.length > 0 && (
+            <div style={{ marginTop: "5mm" }}>
+              <div style={{
+                background: "#2a2a2a", color: "white", padding: "1.75mm 3mm",
+                borderRadius: "1mm 1mm 0 0", fontSize: "10px", fontWeight: 700,
+                textTransform: "uppercase", letterSpacing: "0.45px",
+                display: "flex", alignItems: "center", minHeight: "6.5mm",
+              }}>
+                Detalhes do Produto
+              </div>
+              <div style={{
+                border: "1px solid #c0c0c0", borderTop: "none", borderRadius: "0 0 1mm 1mm",
+                display: "flex",
+                flexWrap: "wrap",
+                gap: "2.5mm",
+                padding: "2.5mm",
+                alignItems: "flex-start",
+              }}>
+                {product.imagensDetalhe.map((d) => (
+                  <div
+                    key={d.id}
+                    style={{
+                      flex: "1 1 0",
+                      minWidth: "32mm",
+                      maxWidth: "48mm",
+                      textAlign: "center",
+                      boxSizing: "border-box",
+                    }}
+                  >
+                    <img
+                      src={d.imagem}
+                      alt={d.titulo}
+                      style={{
+                        width: "100%",
+                        maxWidth: "100%",
+                        height: "auto",
+                        maxHeight: "42mm",
+                        margin: "0 auto",
+                        display: "block",
+                        objectFit: "contain",
+                        border: "1px solid #c5c5c5",
+                        borderRadius: "1mm",
+                        background: "#f7f7f7",
+                      }}
+                    />
+                    <div
+                      style={{
+                        fontSize: "9px",
+                        marginTop: "1.25mm",
+                        color: "#1a1a1a",
+                        fontWeight: 600,
+                        lineHeight: 1.35,
+                        wordBreak: "break-word",
+                        overflowWrap: "break-word",
+                      }}
+                    >
+                      {d.titulo}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div style={{
+            position: "absolute", bottom: "5mm", left: "8mm", right: "8mm",
+            borderTop: "1px solid #c0c0c0", paddingTop: "2mm",
+            display: "flex", justifyContent: "space-between", fontSize: "9px", color: "#444444", fontWeight: 500,
+          }}>
+            <span>Gerado por Vant Studio — Catálogo Digital</span>
+            <span>{product.referencia}</span>
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
+/** Blocos da coluna direita em paisagem: ordem fixa; distribuição em 2 colunas flex (ímpar/par) evita lacunas do CSS Grid por linhas. */
+function getLandscapeInfoBlocks(product: Product): { id: string; node: ReactNode }[] {
+  const blocks: { id: string; node: ReactNode }[] = [];
+
+  if (product.tecido) {
+    blocks.push({
+      id: "tecido",
+      node: (
+        <InfoSection title="TECIDO">
+          <div style={{ padding: "1.75mm 2mm", fontSize: "10px", color: "#111111", fontWeight: 500, lineHeight: 1.4 }}>
+            {product.tecido}
+          </div>
+        </InfoSection>
+      ),
+    });
+  }
+  if (product.tamanhos.length > 0) {
+    blocks.push({
+      id: "tamanhos",
+      node: (
+        <InfoSection title="TAMANHOS">
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "1mm", padding: "1.5mm 2mm" }}>
+            {product.tamanhos.map((t) => (
+              <span key={t} style={{
+                padding: "0.75mm 2mm", background: "#eeeeee", borderRadius: "1mm",
+                fontSize: "9px", fontWeight: 600, color: "#111111", border: "1px solid #cfcfcf",
+              }}>
+                {t}
+              </span>
+            ))}
+          </div>
+        </InfoSection>
+      ),
+    });
+  }
+  if (product.cores.length > 0) {
+    blocks.push({
+      id: "cores",
+      node: (
+        <InfoSection title="CORES">
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "1.5mm", padding: "1.5mm 2mm", alignItems: "center" }}>
+            {product.cores.map((c) => (
+              <div key={c.id} style={{ display: "flex", alignItems: "center", gap: "1mm" }}>
+                <div style={{
+                  width: "3.5mm", height: "3.5mm", borderRadius: "50%",
+                  background: c.hex, border: "1px solid #888888",
+                }} />
+                <span style={{ fontSize: "8px", fontWeight: 600, color: "#111111" }}>{c.nome}</span>
+              </div>
+            ))}
+          </div>
+        </InfoSection>
+      ),
+    });
+  }
+  if (product.pintura.imagem || product.pintura.cor || product.pintura.tamanho || product.pintura.localizacao) {
+    blocks.push({
+      id: "pintura",
+      node: (
+        <InfoSection title="PINTURA">
+          {product.pintura.imagem && (
+            <div style={{
+              padding: "1.5mm 2mm",
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              width: "100%",
+              boxSizing: "border-box",
+              height: "30mm",
+              background: "#f7f7f7",
+              border: "1px solid #c5c5c5",
+              borderRadius: "1mm",
+            }}>
+              <img
+                src={product.pintura.imagem}
+                alt="Pintura"
+                style={{
+                  maxWidth: "100%",
+                  maxHeight: "100%",
+                  width: "auto",
+                  height: "auto",
+                  display: "block",
+                  objectFit: "contain",
+                  flexShrink: 0,
+                  alignSelf: "center",
+                }}
+              />
+            </div>
+          )}
+          <InfoRow label="Cor" value={product.pintura.cor} />
+          <InfoRow label="Tamanho" value={product.pintura.tamanho} />
+          <InfoRow label="Localização" value={product.pintura.localizacao} />
+        </InfoSection>
+      ),
+    });
+  }
+  if (product.marcaCliente.imagem || product.marcaCliente.cor || product.marcaCliente.tamanho || product.marcaCliente.localizacao) {
+    blocks.push({
+      id: "marca",
+      node: (
+        <InfoSection title="MARCA DO CLIENTE">
+          {product.marcaCliente.imagem && (
+            <div style={{ padding: "1mm 2mm", display: "flex", justifyContent: "center" }}>
+              <img
+                src={product.marcaCliente.imagem}
+                alt="Marca"
+                style={{
+                  maxWidth: "100%",
+                  maxHeight: "14mm",
+                  objectFit: "contain",
+                  border: "1px solid #c5c5c5",
+                  borderRadius: "1mm",
+                  background: "#f7f7f7",
+                }}
+              />
+            </div>
+          )}
+          <InfoRow label="Cor" value={product.marcaCliente.cor} />
+          <InfoRow label="Tamanho" value={product.marcaCliente.tamanho} />
+          <InfoRow label="Localização" value={product.marcaCliente.localizacao} />
+        </InfoSection>
+      ),
+    });
+  }
+  if (product.nomeCampo.texto || product.nomeCampo.cor || product.nomeCampo.tamanho) {
+    blocks.push({
+      id: "nomeCampo",
+      node: (
+        <InfoSection title="NOME DO CAMPO">
+          {product.nomeCampo.texto && (
+            <div style={{ padding: "1.75mm 2mm", fontSize: "9px", color: "#111111", fontWeight: 500, lineHeight: 1.4 }}>
+              {product.nomeCampo.texto}
+            </div>
+          )}
+          <InfoRow label="Cor" value={product.nomeCampo.cor} />
+          <InfoRow label="Tamanho" value={product.nomeCampo.tamanho} />
+        </InfoSection>
+      ),
+    });
+  }
+  if (product.timbrado?.ativo && product.timbrado?.imagem) {
+    blocks.push({
+      id: "timbrado",
+      node: (
+        <InfoSection title="TIMBRADO">
+          <div style={{ padding: "1mm 2mm", display: "flex", justifyContent: "center" }}>
+            <img
+              src={product.timbrado.imagem}
+              alt="Timbrado"
+              style={{ maxWidth: "100%", maxHeight: "14mm", objectFit: "contain", border: "1px solid #c5c5c5", borderRadius: "1mm", background: "#f7f7f7" }}
+            />
+          </div>
+        </InfoSection>
+      ),
+    });
+  }
+  if (product.rastreavel?.ativo && product.rastreavel?.imagem) {
+    blocks.push({
+      id: "rastreavel",
+      node: (
+        <InfoSection title="RASTREÁVEL">
+          <div style={{ padding: "1mm 2mm", display: "flex", justifyContent: "center" }}>
+            <img
+              src={product.rastreavel.imagem}
+              alt="Rastreável"
+              style={{ maxWidth: "100%", maxHeight: "14mm", objectFit: "contain", border: "1px solid #c5c5c5", borderRadius: "1mm", background: "#f7f7f7" }}
+            />
+          </div>
+        </InfoSection>
+      ),
+    });
+  }
+
+  return blocks;
+}
+
+const landscapeInfoCardShell: CSSProperties = {
+  breakInside: "avoid",
+  pageBreakInside: "avoid",
+  WebkitPrintColorAdjust: "exact",
+  printColorAdjust: "exact",
+};
+
+/** A4 paisagem (297×210 mm): desenho | detalhes técnicos | blocos em duas colunas flex (sem alinhamento forçado por linha do grid). */
+function CatalogLandscapeBody({
+  product,
+  settings,
+}: {
+  product: Product;
+  settings: CompanySettings;
+}) {
+  const padX = "6mm";
+  const infoBlocks = getLandscapeInfoBlocks(product);
+  const infoColLeft = infoBlocks.filter((_, i) => i % 2 === 0);
+  const infoColRight = infoBlocks.filter((_, i) => i % 2 === 1);
+
+  return (
+    <>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "4mm", gap: "4mm" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "3mm", minWidth: 0 }}>
           {settings.logo ? (
-            <img src={settings.logo} alt="Logo" style={{ height: "14mm", maxWidth: "40mm", objectFit: "contain" }} />
+            <img src={settings.logo} alt="Logo" style={{ height: "10mm", maxWidth: "32mm", objectFit: "contain" }} />
           ) : (
             <div style={{
-              width: "14mm", height: "14mm", borderRadius: "3mm",
+              width: "10mm", height: "10mm", borderRadius: "2mm",
               background: "#f97316", display: "flex", alignItems: "center", justifyContent: "center",
-              color: "white", fontWeight: 700, fontSize: "16px", fontFamily: "Space Grotesk, sans-serif"
+              color: "white", fontWeight: 700, fontSize: "12px", fontFamily: "Space Grotesk, sans-serif",
             }}>
               VS
             </div>
           )}
+          {settings.slogan ? (
+            <div style={{ fontSize: "8px", color: "#555555", maxWidth: "52mm", lineHeight: 1.4, fontWeight: 500 }}>
+              {settings.slogan}
+            </div>
+          ) : null}
         </div>
-        <div style={{ fontSize: "8px", color: "#999", textAlign: "right" }}>
+        <div style={{ fontSize: "8px", color: "#454545", fontWeight: 500, textAlign: "right", flexShrink: 0, lineHeight: 1.4 }}>
+          {settings.nomeEmpresa && <div style={{ fontWeight: 700, color: "#222222" }}>{settings.nomeEmpresa}</div>}
           {product.referencia && <div>Ref: {product.referencia}</div>}
           {product.categoria && <div>{product.categoria}</div>}
         </div>
       </div>
 
-      {/* Product Name Banner */}
       <div style={{
         background: "#f97316",
         color: "white",
-        padding: "3mm 5mm",
+        padding: "2mm 4mm",
         borderRadius: "2mm",
-        marginBottom: "5mm",
+        marginBottom: "4mm",
         fontFamily: "Space Grotesk, sans-serif",
         fontWeight: 700,
-        fontSize: "16px",
+        fontSize: "15px",
         textTransform: "uppercase",
-        letterSpacing: "0.5px",
+        letterSpacing: "0.4px",
       }}>
         {product.nome}
       </div>
 
-      {/* Main Content */}
-      <div style={{ display: "flex", gap: "5mm" }}>
-        {/* Left: Technical Drawing */}
-        <div style={{ flex: "1.2", minWidth: 0 }}>
+      <div style={{ display: "flex", gap: "4mm", alignItems: "flex-start" }}>
+        <div style={{ flex: "1.12", minWidth: 0 }}>
           {product.imagemPrincipal ? (
             <div style={{
-              border: "1px solid #ddd", borderRadius: "2mm", padding: "3mm",
-              background: "#fafafa", display: "flex", alignItems: "center", justifyContent: "center",
-              minHeight: "80mm",
+              border: "1px solid #b8b8b8", borderRadius: "2mm", padding: "2mm",
+              background: "#f7f7f7", display: "flex", alignItems: "center", justifyContent: "center",
+              minHeight: "52mm", maxHeight: "74mm",
             }}>
               <img
                 src={product.imagemPrincipal}
                 alt={product.nome}
-                style={{ 
-                  maxWidth: "100%", 
-                  maxHeight: "100mm", 
-                  width: "auto", 
-                  height: "auto", 
+                style={{
+                  maxWidth: "100%",
+                  maxHeight: "70mm",
+                  width: "auto",
+                  height: "auto",
                   display: "block",
-                  objectFit: "contain" 
+                  objectFit: "contain",
                 }}
               />
             </div>
           ) : (
             <div style={{
-              border: "1px dashed #ccc", borderRadius: "2mm", padding: "10mm",
+              border: "1px dashed #ccc", borderRadius: "2mm", padding: "6mm",
               display: "flex", alignItems: "center", justifyContent: "center",
-              minHeight: "80mm", color: "#999", fontSize: "11px",
+              minHeight: "52mm", color: "#555555", fontSize: "11px", fontWeight: 500,
             }}>
               Desenho técnico
             </div>
           )}
-
-          {/* Dimensions */}
           {(product.dimensoes.largura || product.dimensoes.altura) && (
-            <div style={{ marginTop: "3mm", display: "flex", gap: "4mm", fontSize: "9px" }}>
+            <div style={{ marginTop: "2mm", display: "flex", flexWrap: "wrap", gap: "2mm", fontSize: "9px", color: "#111111", fontWeight: 500 }}>
               {product.dimensoes.largura && (
-                <div style={{ padding: "2mm 3mm", background: "#f5f5f5", borderRadius: "1mm" }}>
+                <div style={{ padding: "1.5mm 2mm", background: "#eeeeee", borderRadius: "1mm", border: "1px solid #cfcfcf" }}>
                   <strong>Largura:</strong> {product.dimensoes.largura} {product.dimensoes.unidade}
                 </div>
               )}
               {product.dimensoes.altura && (
-                <div style={{ padding: "2mm 3mm", background: "#f5f5f5", borderRadius: "1mm" }}>
+                <div style={{ padding: "1.5mm 2mm", background: "#eeeeee", borderRadius: "1mm", border: "1px solid #cfcfcf" }}>
                   <strong>Altura:</strong> {product.dimensoes.altura} {product.dimensoes.unidade}
                 </div>
               )}
             </div>
           )}
+        </div>
 
-          {/* Details list */}
+        <div style={{ flex: "0 0 26%", minWidth: 0 }}>
           {product.detalhes.length > 0 && (
-            <div style={{ marginTop: "4mm" }}>
+            <div>
               <div style={{
-                background: "#333", color: "white", padding: "1.5mm 3mm",
-                borderRadius: "1mm 1mm 0 0", fontSize: "8px", fontWeight: 600,
-                textTransform: "uppercase", letterSpacing: "0.5px",
+                background: "#2a2a2a", color: "white", padding: "1.5mm 2mm",
+                borderRadius: "1mm 1mm 0 0", fontSize: "8px", fontWeight: 700,
+                textTransform: "uppercase", letterSpacing: "0.4px",
+                minHeight: "5.5mm", display: "flex", alignItems: "center",
               }}>
                 Detalhes Técnicos
               </div>
-              <div style={{ border: "1px solid #ddd", borderTop: "none", borderRadius: "0 0 1mm 1mm" }}>
+              <div style={{ border: "1px solid #c0c0c0", borderTop: "none", borderRadius: "0 0 1mm 1mm" }}>
                 {product.detalhes.map((d, i) => (
                   <div key={d.id} style={{
-                    padding: "2mm 3mm", fontSize: "9px",
-                    borderBottom: i < product.detalhes.length - 1 ? "1px solid #eee" : "none",
-                    display: "flex", alignItems: "center", gap: "2mm",
+                    padding: "1.75mm 2mm", fontSize: "9px", color: "#111111", lineHeight: 1.4,
+                    borderBottom: i < product.detalhes.length - 1 ? "1px solid #e2e2e2" : "none",
+                    display: "flex", alignItems: "flex-start", gap: "1.5mm",
                   }}>
-                    <div style={{ width: "4.5mm", height: "4.5mm", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <div style={{ width: "3.5mm", height: "3.5mm", flexShrink: 0 }}>
                       <svg width="100%" height="100%" viewBox="0 0 20 20">
                         <circle cx="10" cy="10" r="10" fill="#f97316" />
-                        <text 
-                          x="50%" 
-                          y="50%" 
-                          dominantBaseline="central" 
-                          textAnchor="middle" 
-                          fill="white" 
-                          fontSize="10" 
-                          fontWeight="bold" 
-                          fontFamily="Arial, sans-serif"
-                        >
+                        <text x="50%" y="50%" dominantBaseline="central" textAnchor="middle" fill="white" fontSize="10" fontWeight="bold" fontFamily="Arial, sans-serif">
                           {i + 1}
                         </text>
                       </svg>
                     </div>
-                    {d.texto}
+                    <span style={{ lineHeight: 1.4, wordBreak: "break-word", fontWeight: 500 }}>{d.texto}</span>
                   </div>
                 ))}
               </div>
@@ -148,227 +706,118 @@ export const CatalogPage = ({ product, settings }: CatalogPageProps) => {
           )}
         </div>
 
-        {/* Right: Info Sections */}
-        <div style={{ flex: "0.8", display: "flex", flexDirection: "column", gap: "4mm" }}>
-          {/* Tecido */}
-          {product.tecido && (
-            <InfoSection title="TECIDO">
-              <div style={{ padding: "2mm 3mm", fontSize: "10px" }}>{product.tecido}</div>
-            </InfoSection>
-          )}
-
-          {/* Tamanhos */}
-          {product.tamanhos.length > 0 && (
-            <InfoSection title="TAMANHOS">
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "2mm", padding: "2mm 3mm" }}>
-                {product.tamanhos.map((t) => (
-                  <span key={t} style={{
-                    padding: "1mm 3mm", background: "#f5f5f5", borderRadius: "1mm",
-                    fontSize: "9px", fontWeight: 500,
-                  }}>
-                    {t}
-                  </span>
-                ))}
+        <div style={{
+          flex: "1",
+          minWidth: 0,
+          display: "flex",
+          flexDirection: "row",
+          gap: "2.5mm",
+          alignItems: "flex-start",
+        }}>
+          <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "2.5mm" }}>
+            {infoColLeft.map((b) => (
+              <div key={b.id} style={landscapeInfoCardShell}>
+                {b.node}
               </div>
-            </InfoSection>
-          )}
-
-          {/* Cores */}
-          {product.cores.length > 0 && (
-            <InfoSection title="CORES">
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "2mm", padding: "2mm 3mm", alignItems: "center" }}>
-                {product.cores.map((c) => (
-                  <div key={c.id} style={{ display: "flex", alignItems: "center", gap: "1.5mm" }}>
-                    <div style={{
-                      width: "4mm", height: "4mm", borderRadius: "50%",
-                      background: c.hex, border: "0.5px solid #ccc",
-                    }} />
-                    <span style={{ fontSize: "8px" }}>{c.nome}</span>
-                  </div>
-                ))}
+            ))}
+          </div>
+          <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "2.5mm" }}>
+            {infoColRight.map((b) => (
+              <div key={b.id} style={landscapeInfoCardShell}>
+                {b.node}
               </div>
-            </InfoSection>
-          )}
-
-          {/* Pintura */}
-          {(product.pintura.imagem || product.pintura.cor || product.pintura.tamanho || product.pintura.localizacao) && (
-            <InfoSection title="PINTURA">
-              {product.pintura.imagem && (
-                <div style={{ padding: "2mm 3mm 1mm", display: "flex", justifyContent: "center" }}>
-                  <img
-                    src={product.pintura.imagem}
-                    alt="Pintura do produto"
-                    style={{
-                      maxWidth: "100%",
-                      maxHeight: "22mm",
-                      width: "auto",
-                      height: "auto",
-                      display: "block",
-                      objectFit: "contain",
-                      border: "1px solid #eee",
-                      borderRadius: "1mm",
-                      background: "#fafafa",
-                    }}
-                  />
-                </div>
-              )}
-              <InfoRow label="Cor" value={product.pintura.cor} />
-              <InfoRow label="Tamanho" value={product.pintura.tamanho} />
-              <InfoRow label="Localização" value={product.pintura.localizacao} />
-            </InfoSection>
-          )}
-
-          {/* Marca do Cliente */}
-          {(product.marcaCliente.imagem || product.marcaCliente.cor || product.marcaCliente.tamanho || product.marcaCliente.localizacao) && (
-            <InfoSection title="MARCA DO CLIENTE">
-              {product.marcaCliente.imagem && (
-                <div style={{ padding: "2mm 3mm 1mm", display: "flex", justifyContent: "center" }}>
-                  <img
-                    src={product.marcaCliente.imagem}
-                    alt="Marca do cliente"
-                    style={{
-                      maxWidth: "100%",
-                      maxHeight: "22mm",
-                      width: "auto",
-                      height: "auto",
-                      display: "block",
-                      objectFit: "contain",
-                      border: "1px solid #eee",
-                      borderRadius: "1mm",
-                      background: "#fafafa",
-                    }}
-                  />
-                </div>
-              )}
-              <InfoRow label="Cor" value={product.marcaCliente.cor} />
-              <InfoRow label="Tamanho" value={product.marcaCliente.tamanho} />
-              <InfoRow label="Localização" value={product.marcaCliente.localizacao} />
-            </InfoSection>
-          )}
-
-          {/* Nome do Campo */}
-          {(product.nomeCampo.texto || product.nomeCampo.cor || product.nomeCampo.tamanho) && (
-            <InfoSection title="NOME DO CAMPO">
-              {product.nomeCampo.texto && (
-                <div style={{ padding: "2mm 3mm", fontSize: "9px" }}>{product.nomeCampo.texto}</div>
-              )}
-              <InfoRow label="Cor" value={product.nomeCampo.cor} />
-              <InfoRow label="Tamanho" value={product.nomeCampo.tamanho} />
-            </InfoSection>
-          )}
-
-          {/* Timbrado */}
-          {product.timbrado?.ativo && product.timbrado?.imagem && (
-            <InfoSection title="TIMBRADO">
-              <div style={{ padding: "2mm 3mm", display: "flex", justifyContent: "center" }}>
-                <img
-                  src={product.timbrado.imagem}
-                  alt="Timbrado"
-                  style={{
-                    maxWidth: "100%",
-                    maxHeight: "22mm",
-                    width: "auto",
-                    height: "auto",
-                    display: "block",
-                    objectFit: "contain",
-                    border: "1px solid #eee",
-                    borderRadius: "1mm",
-                    background: "#fafafa",
-                  }}
-                />
-              </div>
-            </InfoSection>
-          )}
-
-          {/* Rastreável */}
-          {product.rastreavel?.ativo && product.rastreavel?.imagem && (
-            <InfoSection title="RASTREÁVEL">
-              <div style={{ padding: "2mm 3mm", display: "flex", justifyContent: "center" }}>
-                <img
-                  src={product.rastreavel.imagem}
-                  alt="Rastreamento"
-                  style={{
-                    maxWidth: "100%",
-                    maxHeight: "22mm",
-                    width: "auto",
-                    height: "auto",
-                    display: "block",
-                    objectFit: "contain",
-                    border: "1px solid #eee",
-                    borderRadius: "1mm",
-                    background: "#fafafa",
-                  }}
-                />
-              </div>
-            </InfoSection>
-          )}
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* Detail Images */}
       {product.imagensDetalhe.length > 0 && (
-        <div style={{ marginTop: "5mm" }}>
+        <div style={{ marginTop: "3mm" }}>
           <div style={{
-            background: "#333", color: "white", padding: "1.5mm 3mm",
-            borderRadius: "1mm 1mm 0 0", fontSize: "8px", fontWeight: 600,
-            textTransform: "uppercase", letterSpacing: "0.5px",
-            display: "flex", alignItems: "center", minHeight: "6mm"
+            background: "#2a2a2a", color: "white", padding: "1.75mm 2.5mm",
+            borderRadius: "1mm 1mm 0 0", fontSize: "10px", fontWeight: 700,
+            textTransform: "uppercase", letterSpacing: "0.45px",
+            minHeight: "6.5mm", display: "flex", alignItems: "center",
           }}>
             Detalhes do Produto
           </div>
           <div style={{
-            border: "1px solid #ddd", borderTop: "none", borderRadius: "0 0 1mm 1mm",
-            display: "flex", flexWrap: "wrap", gap: "3mm", padding: "3mm",
+            border: "1px solid #c0c0c0", borderTop: "none", borderRadius: "0 0 1mm 1mm",
+            display: "flex",
+            flexWrap: "wrap",
+            gap: "2.5mm",
+            padding: "2.5mm",
+            alignItems: "flex-start",
           }}>
             {product.imagensDetalhe.map((d) => (
-              <div key={d.id} style={{ width: "25mm", textAlign: "center" }}>
+              <div
+                key={d.id}
+                style={{
+                  flex: "1 1 0",
+                  minWidth: "36mm",
+                  maxWidth: "58mm",
+                  textAlign: "center",
+                  boxSizing: "border-box",
+                }}
+              >
                 <img
                   src={d.imagem}
                   alt={d.titulo}
                   style={{
-                    maxWidth: "25mm", 
-                    maxHeight: "20mm",
-                    width: "auto",
+                    width: "100%",
+                    maxWidth: "100%",
                     height: "auto",
-                    display: "block",
+                    maxHeight: "36mm",
                     margin: "0 auto",
+                    display: "block",
                     objectFit: "contain",
-                    border: "1px solid #eee", 
-                    borderRadius: "1mm", 
-                    background: "#fafafa",
+                    border: "1px solid #c5c5c5",
+                    borderRadius: "1mm",
+                    background: "#f7f7f7",
                   }}
                 />
-                <div style={{ fontSize: "7px", marginTop: "1mm", color: "#555" }}>{d.titulo}</div>
+                <div
+                  style={{
+                    fontSize: "9px",
+                    marginTop: "1.1mm",
+                    color: "#1a1a1a",
+                    fontWeight: 600,
+                    lineHeight: 1.35,
+                    wordBreak: "break-word",
+                    overflowWrap: "break-word",
+                  }}
+                >
+                  {d.titulo}
+                </div>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* Footer */}
       <div style={{
-        position: "absolute", bottom: "5mm", left: "8mm", right: "8mm",
-        borderTop: "1px solid #eee", paddingTop: "2mm",
-        display: "flex", justifyContent: "space-between", fontSize: "7px", color: "#999",
+        position: "absolute", bottom: "4mm", left: padX, right: padX,
+        borderTop: "1px solid #c0c0c0", paddingTop: "1.5mm",
+        display: "flex", justifyContent: "space-between", fontSize: "9px", color: "#444444", fontWeight: 500,
       }}>
         <span>Gerado por Vant Studio — Catálogo Digital</span>
         <span>{product.referencia}</span>
       </div>
-    </div>
+    </>
   );
-};
+}
 
 const InfoSection = ({ title, children }: { title: string; children: React.ReactNode }) => (
   <div>
     <div style={{
-      background: "#f97316", color: "white", padding: "0 3mm",
-      borderRadius: "1mm 1mm 0 0", fontSize: "8px", fontWeight: 600,
-      textTransform: "uppercase", letterSpacing: "0.5px",
-      display: "flex", alignItems: "center", minHeight: "6mm"
+      background: "#ea580c", color: "white", padding: "0 3mm",
+      borderRadius: "1mm 1mm 0 0", fontSize: "9px", fontWeight: 700,
+      textTransform: "uppercase", letterSpacing: "0.45px",
+      display: "flex", alignItems: "center", minHeight: "6.5mm",
     }}>
       {title}
     </div>
-    <div style={{ border: "1px solid #ddd", borderTop: "none", borderRadius: "0 0 1mm 1mm" }}>
+    <div style={{ border: "1px solid #b0b0b0", borderTop: "none", borderRadius: "0 0 1mm 1mm", background: "#fff" }}>
       {children}
     </div>
   </div>
@@ -378,11 +827,15 @@ const InfoRow = ({ label, value }: { label: string; value: string }) => {
   if (!value) return null;
   return (
     <div style={{
-      display: "flex", justifyContent: "space-between", padding: "1.5mm 3mm",
-      fontSize: "9px", borderBottom: "1px solid #f5f5f5",
+      display: "flex", justifyContent: "space-between", alignItems: "baseline",
+      gap: "2mm",
+      padding: "2mm 3mm",
+      fontSize: "10px",
+      lineHeight: 1.4,
+      borderBottom: "1px solid #e8e8e8",
     }}>
-      <span style={{ color: "#666" }}>{label}:</span>
-      <span style={{ fontWeight: 500 }}>{value}</span>
+      <span style={{ color: "#333333", fontWeight: 700, flexShrink: 0 }}>{label}:</span>
+      <span style={{ fontWeight: 600, color: "#0a0a0a", textAlign: "right" }}>{value}</span>
     </div>
   );
 };

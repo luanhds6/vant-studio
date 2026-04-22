@@ -74,9 +74,9 @@ export function AppSidebar() {
   });
 
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar collapsible="icon" variant="floating" className="border-0">
       <SidebarContent>
-        <div className={`flex items-center gap-2 border-b border-sidebar-border px-4 py-4 ${collapsed ? "justify-center" : ""}`}>
+        <div className={`flex items-center gap-2 border-b border-sidebar-border/60 px-4 py-4 ${collapsed ? "justify-center" : ""}`}>
           <img
             src={BRAND_LOGO_SRC}
             alt={APP_NAME}
@@ -105,8 +105,8 @@ export function AppSidebar() {
                     <NavLink
                       to={item.url}
                       end={item.url === "/" || item.url === "/hospitais" || item.url === "/cadastro-produtos"}
-                      className="hover:bg-sidebar-accent"
-                      activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
+                      className="rounded-xl transition duration-300 ease-out hover:bg-sidebar-accent/90 hover:shadow-sm"
+                      activeClassName="bg-gradient-to-r from-primary/18 via-primary/12 to-orange-400/10 font-semibold text-primary shadow-sm ring-1 ring-primary/15"
                     >
                       <item.icon className="mr-2 h-4 w-4" />
                       {!collapsed && <span>{item.title}</span>}
@@ -121,10 +121,10 @@ export function AppSidebar() {
       <div className="mt-auto space-y-2 p-3">
         <NavLink
           to="/perfil"
-          className={`flex items-center gap-2 rounded-md px-2 py-2 text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground ${
+          className={`flex items-center gap-2 rounded-xl border border-transparent px-2 py-2 text-sidebar-foreground transition duration-300 ease-out hover:border-sidebar-border/60 hover:bg-sidebar-accent/80 hover:shadow-sm ${
             collapsed ? "justify-center" : ""
           }`}
-          activeClassName="bg-sidebar-accent text-sidebar-primary"
+          activeClassName="border-primary/20 bg-sidebar-accent/90 text-primary shadow-sm"
         >
           <Avatar className={collapsed ? "h-8 w-8" : "h-9 w-9"}>
             {currentUser?.profilePhoto ? (
@@ -146,7 +146,7 @@ export function AppSidebar() {
             <SidebarMenuItem>
               <SidebarMenuButton
                 onClick={() => logout()}
-                className="w-full justify-start font-medium text-destructive hover:bg-destructive/10 hover:text-destructive"
+                className="w-full justify-start rounded-xl font-medium text-destructive transition duration-300 hover:scale-[1.01] hover:bg-destructive/10 hover:text-destructive"
               >
                 <LogOut className="h-4 w-4" />
                 {!collapsed && <span>Sair do Sistema</span>}

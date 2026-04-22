@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import QRCode from "qrcode";
 import { useDropzone } from "react-dropzone";
+import { useShallow } from "zustand/react/shallow";
 import { useAuthStore } from "@/store/authStore";
 import { useProductStore } from "@/store/productStore";
 import { getDefaultLandingPath } from "@/lib/routeAccess";
@@ -56,6 +56,13 @@ function findExactByEtiqueta(products: Product[], q: string): Product | undefine
 }
 
 const UNIDADES = ["cm", "m", "mm", "in"] as const;
+
+const EMPTY_PRODUCTS: Product[] = [];
+
+async function generateQrDataUrl(text: string): Promise<string> {
+  const QRCode = (await import("qrcode")).default;
+  return QRCode.toDataURL(text, { width: 220, margin: 2, errorCorrectionLevel: "M" });
+}
 
 function productToDraft(p: Product) {
   const u = p.dimensoes.unidade || "cm";
@@ -127,7 +134,6 @@ export default function ProductCadastroPage() {
   const canAccess = useAuthStore((s) => s.canAccess);
   const hospitals = useProductStore((s) => s.hospitals);
   const getHospital = useProductStore((s) => s.getHospital);
-  const allProducts = useProductStore((s) => s.products);
   const addProduct = useProductStore((s) => s.addProduct);
   const updateProduct = useProductStore((s) => s.updateProduct);
 
@@ -160,9 +166,8 @@ export default function ProductCadastroPage() {
 
   const hospitalId = selectedHospitalId ?? "";
   const hospital = hospitalId ? getHospital(hospitalId) : undefined;
-  const products = useMemo(
-    () => (hospitalId ? allProducts.filter((p) => p.hospitalId === hospitalId) : []),
-    [allProducts, hospitalId],
+  const products = useProductStore(
+    useShallow((s) => (hospitalId ? s.products.filter((p) => p.hospitalId === hospitalId) : EMPTY_PRODUCTS)),
   );
 
   const canCreate = canAccess("novo_produto");
@@ -174,9 +179,14 @@ export default function ProductCadastroPage() {
   }, [listQuery]);
 
   useEffect(() => {
+    if (!modalOpen) {
+      setQrDataUrl(null);
+      setQrError(null);
+      return;
+    }
     let cancelled = false;
     const text = codigoEtiqueta.trim() || " ";
-    QRCode.toDataURL(text, { width: 220, margin: 2, errorCorrectionLevel: "M" })
+    void generateQrDataUrl(text)
       .then((url) => {
         if (!cancelled) {
           setQrDataUrl(url);
@@ -192,7 +202,7 @@ export default function ProductCadastroPage() {
     return () => {
       cancelled = true;
     };
-  }, [codigoEtiqueta]);
+  }, [modalOpen, codigoEtiqueta]);
 
   const displayedProducts = useMemo(() => {
     const q = debouncedListQuery.trim();
@@ -648,7 +658,7 @@ export default function ProductCadastroPage() {
                   size="sm"
                   className="w-full"
                   onClick={() => {
-                    void QRCode.toDataURL(codigoEtiqueta.trim() || " ", { width: 220, margin: 2 }).then(setQrDataUrl);
+                    void generateQrDataUrl(codigoEtiqueta.trim() || " ").then(setQrDataUrl);
                   }}
                 >
                   <RefreshCw className="mr-2 h-4 w-4" />
