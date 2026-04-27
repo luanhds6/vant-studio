@@ -98,6 +98,7 @@ const SettingsRouteGate = () => {
 
 const App = () => {
   const canAccess = useAuthStore((s) => s.canAccess);
+  const currentUser = useAuthStore((s) => s.currentUser); // Trigger re-render on auth change
   const initAuth = useAuthStore((s) => s.initialize);
   const authLoading = useAuthStore((s) => s.isLoading);
   const initProducts = useProductStore((s) => s.initialize);

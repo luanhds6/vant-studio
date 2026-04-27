@@ -61,7 +61,7 @@ function LoginWaves() {
                 <stop offset="0%" stopColor="#0a1628">
                   <animate
                     attributeName="stop-color"
-                    dur="12s"
+                    dur="6s"
                     repeatCount="indefinite"
                     values="#0a1628;#0f2540;#0a1628;#0a1628"
                   />
@@ -69,7 +69,7 @@ function LoginWaves() {
                 <stop offset="50%" stopColor="#2bb0ff" stopOpacity="0.9">
                   <animate
                     attributeName="stop-color"
-                    dur="10s"
+                    dur="5s"
                     repeatCount="indefinite"
                     values="#2da3ff;#4ae8ff;#60a5fa;#2da3ff"
                   />
@@ -103,7 +103,7 @@ function LoginWaves() {
                 <stop offset="50%" stopColor="#22d3ee" stopOpacity="0.6">
                   <animate
                     attributeName="stop-color"
-                    dur="8s"
+                    dur="4s"
                     repeatCount="indefinite"
                     values="#22d3ee;#3b82f6;#67e8f9;#22d3ee"
                   />
@@ -142,7 +142,7 @@ function LoginWaves() {
                 <stop offset="50%" stopColor="#a5d7ff" stopOpacity="0.9">
                   <animate
                     attributeName="stop-opacity"
-                    dur="6s"
+                    dur="3s"
                     repeatCount="indefinite"
                     values="0.5;0.95;0.6;0.5"
                   />
@@ -188,7 +188,7 @@ function LoginWaves() {
               >
                 <animate
                   attributeName="opacity"
-                  dur="4.5s"
+                  dur="2.5s"
                   repeatCount="indefinite"
                   values={`${s.o * 0.3};${s.o};${s.o * 0.4};${s.o * 0.3}`}
                 />

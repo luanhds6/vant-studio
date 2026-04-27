@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AppSidebar } from "./AppSidebar";
 import { ThemeToggle } from "./ThemeToggle";
+import { SystemWavesBackground } from "./SystemWavesBackground";
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const versionLabel = getAppVersionLabel();
@@ -12,6 +13,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <SidebarProvider className="relative min-h-svh overflow-x-hidden">
       <div className="vant-app-bg" aria-hidden />
+      <SystemWavesBackground />
       <div className="relative z-[1] flex min-h-svh w-full">
         <AppSidebar />
         <div className="relative flex min-h-0 flex-1 flex-col bg-transparent">
