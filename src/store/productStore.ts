@@ -34,11 +34,15 @@ interface ProductStore {
   getHospital: (id: string) => Hospital | undefined;
   getProductsByHospital: (hospitalId: string) => Product[];
   getProduct: (id: string) => Product | undefined;
+
+  /** Sem sessão: limpa cache, remove Realtime e liberta o primeiro ecrã (login) sem esperar pelo fetch. */
+  resetSession: () => void;
 }
 
 const REALTIME_DEBOUNCE_MS = 400;
 
 let realtimeSubscribed = false;
+let realtimeChannel: ReturnType<typeof supabase.channel> | null = null;
 let realtimeDebounce: ReturnType<typeof setTimeout> | null = null;
 let fetchInflight: Promise<void> | null = null;
 
@@ -60,6 +64,7 @@ export const useProductStore = create<ProductStore>((set, get) => ({
   isLoading: true,
 
   initialize: async () => {
+    set({ isLoading: true });
     try {
       await get().fetchData();
 
@@ -95,7 +100,7 @@ export const useProductStore = create<ProductStore>((set, get) => ({
             console.error("Erro na subscrição Realtime (app-data-listeners)");
           }
         });
-      void channel;
+      realtimeChannel = channel;
     } catch (err) {
       console.error("Erro ao inicializar subscrições Realtime:", err);
     }
@@ -353,4 +358,24 @@ export const useProductStore = create<ProductStore>((set, get) => ({
     get().products.filter((p) => p.hospitalId === hospitalId),
 
   getProduct: (id) => get().products.find((p) => p.id === id),
+
+  resetSession: () => {
+    if (realtimeDebounce) {
+      clearTimeout(realtimeDebounce);
+      realtimeDebounce = null;
+    }
+    if (realtimeChannel) {
+      void supabase.removeChannel(realtimeChannel);
+      realtimeChannel = null;
+    }
+    realtimeSubscribed = false;
+    fetchInflight = null;
+    set({
+      hospitals: [],
+      products: [],
+      colors: [],
+      settings: defaultSettings,
+      isLoading: false,
+    });
+  },
 }));

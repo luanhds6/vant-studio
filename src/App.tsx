@@ -1,18 +1,10 @@
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useMemo } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 import { BrowserRouter, Route, Routes, Navigate, useParams } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import PaginaInicial from "./pages/PaginaInicial";
-import HospitalsPage from "./pages/HospitalsPage";
-import HospitalHub from "./pages/HospitalHub";
-import ProductForm from "./pages/ProductForm";
-import CatalogPreview from "./pages/CatalogPreview";
-import SettingsPage from "./pages/Settings";
-import ProfilePage from "./pages/Profile";
-import ColorsPage from "./pages/ColorsPage";
 import Login from "./pages/Login";
 import { ProtectedLayout } from "./components/layout/ProtectedRoute";
 import { LegacyProductRedirect } from "./components/routes/LegacyProductRedirect";
@@ -22,24 +14,20 @@ import { useProductStore } from "./store/productStore";
 import { PermissionKey } from "./lib/permissions";
 import { canAccessModuloHospitais, canAccessRouteHome, getDefaultLandingPath } from "./lib/routeAccess";
 
+const PaginaInicial = lazy(() => import("./pages/PaginaInicial"));
+const HospitalsPage = lazy(() => import("./pages/HospitalsPage"));
+const HospitalHub = lazy(() => import("./pages/HospitalHub"));
+const ProductForm = lazy(() => import("./pages/ProductForm"));
+const CatalogPreview = lazy(() => import("./pages/CatalogPreview"));
+const SettingsPage = lazy(() => import("./pages/Settings"));
+const ProfilePage = lazy(() => import("./pages/Profile"));
+const ColorsPage = lazy(() => import("./pages/ColorsPage"));
 const ProductCadastroPage = lazy(() => import("./pages/ProductCadastroPage"));
 
-function CadastroProdutosFallback() {
+function RouteFallback() {
   return (
-    <div
-      className="mx-auto max-w-6xl space-y-6 p-1"
-      role="status"
-      aria-label="A carregar cadastro de produtos"
-    >
-      <div className="space-y-2">
-        <div className="h-9 w-44 max-w-full animate-pulse rounded-xl bg-muted/60" />
-        <div className="h-4 w-2/3 max-w-md animate-pulse rounded bg-muted/45" />
-      </div>
-      <div className="animate-pulse space-y-4 rounded-2xl border border-border/40 bg-card/50 p-6">
-        <div className="h-6 w-36 rounded bg-muted/55" />
-        <div className="h-10 w-full max-w-md rounded-lg bg-muted/40" />
-        <div className="h-40 w-full rounded-xl bg-muted/30" />
-      </div>
+    <div className="flex min-h-[40vh] items-center justify-center p-8" role="status" aria-label="A carregar">
+      <div className="h-9 w-9 animate-spin rounded-full border-2 border-primary border-t-transparent" />
     </div>
   );
 }
@@ -93,25 +81,45 @@ const SettingsRouteGate = () => {
   if (!canAccess("configuracoes") && !canAccess("usuarios")) {
     return <Navigate to={landingPath} replace />;
   }
-  return <SettingsPage />;
+  return (
+    <Suspense fallback={<RouteFallback />}>
+      <SettingsPage />
+    </Suspense>
+  );
 };
 
 const App = () => {
   const canAccess = useAuthStore((s) => s.canAccess);
-  const currentUser = useAuthStore((s) => s.currentUser); // Trigger re-render on auth change
+  const currentUser = useAuthStore((s) => s.currentUser);
   const initAuth = useAuthStore((s) => s.initialize);
   const authLoading = useAuthStore((s) => s.isLoading);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const initProducts = useProductStore((s) => s.initialize);
-  const productsLoading = useProductStore((s) => s.isLoading);
+  const resetProductSession = useProductStore((s) => s.resetSession);
 
   useEffect(() => {
     void initAuth();
+  }, [initAuth]);
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (!isAuthenticated) {
+      resetProductSession();
+    }
+  }, [authLoading, isAuthenticated, resetProductSession]);
+
+  useLayoutEffect(() => {
+    if (authLoading || !isAuthenticated) return;
+    useProductStore.setState({ isLoading: true });
     void initProducts();
-  }, [initAuth, initProducts]);
+  }, [authLoading, isAuthenticated, initProducts]);
 
-  const landingPath = getDefaultLandingPath(canAccess);
+  const landingPath = useMemo(
+    () => getDefaultLandingPath(canAccess),
+    [canAccess, currentUser],
+  );
 
-  if (authLoading || productsLoading) {
+  if (authLoading) {
     return (
       <div className="relative flex h-screen w-screen items-center justify-center overflow-hidden bg-gradient-to-br from-sky-50 via-violet-50/80 to-orange-50/90 dark:from-slate-950 dark:via-violet-950/40 dark:to-slate-950">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,hsl(210_90%_88%/0.35),transparent_50%)] dark:bg-[radial-gradient(circle_at_30%_20%,hsl(260_40%_30%/0.25),transparent_50%)]" />
@@ -134,96 +142,96 @@ const App = () => {
           <Toaster />
           <Sonner />
           <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-            <Routes>
-              <Route path="/login" element={<Login />} />
+            <Suspense fallback={<RouteFallback />}>
+              <Routes>
+                <Route path="/login" element={<Login />} />
 
-              <Route element={<ProtectedLayout />}>
-                <Route
-                  path="/"
-                  element={
-                    canAccessRouteHome(canAccess) ? (
-                      <PaginaInicial />
-                    ) : (
-                      <Navigate to={landingPath} replace />
-                    )
-                  }
-                />
-                <Route
-                  path="/hospitais"
-                  element={
-                    canAccessModuloHospitais(canAccess) ? (
-                      <HospitalsPage />
-                    ) : (
-                      <Navigate to={landingPath} replace />
-                    )
-                  }
-                />
-                <Route
-                  path="/hospital/:hospitalId"
-                  element={
-                    canAccessModuloHospitais(canAccess) ? (
-                      <HospitalHub />
-                    ) : (
-                      <Navigate to={landingPath} replace />
-                    )
-                  }
-                />
+                <Route element={<ProtectedLayout />}>
+                  <Route
+                    path="/"
+                    element={
+                      canAccessRouteHome(canAccess) ? (
+                        <PaginaInicial />
+                      ) : (
+                        <Navigate to={landingPath} replace />
+                      )
+                    }
+                  />
+                  <Route
+                    path="/hospitais"
+                    element={
+                      canAccessModuloHospitais(canAccess) ? (
+                        <HospitalsPage />
+                      ) : (
+                        <Navigate to={landingPath} replace />
+                      )
+                    }
+                  />
+                  <Route
+                    path="/hospital/:hospitalId"
+                    element={
+                      canAccessModuloHospitais(canAccess) ? (
+                        <HospitalHub />
+                      ) : (
+                        <Navigate to={landingPath} replace />
+                      )
+                    }
+                  />
 
-                <Route
-                  path="/cadastro-produtos"
-                  element={
-                    <RequireNovoOuProdutos>
-                      <Suspense fallback={<CadastroProdutosFallback />}>
+                  <Route
+                    path="/cadastro-produtos"
+                    element={
+                      <RequireNovoOuProdutos>
                         <ProductCadastroPage />
-                      </Suspense>
-                    </RequireNovoOuProdutos>
-                  }
-                />
-                <Route
-                  path="/hospital/:hospitalId/cadastro-produtos"
-                  element={
-                    <RequireNovoOuProdutos>
-                      <RedirectCadastroProdutosFromHospital />
-                    </RequireNovoOuProdutos>
-                  }
-                />
-                <Route
-                  path="/hospital/:hospitalId/produto/novo"
-                  element={
-                    <RequirePermission permission="novo_produto" fallback={landingPath}>
-                      <ProductForm />
-                    </RequirePermission>
-                  }
-                />
-                <Route
-                  path="/hospital/:hospitalId/produto/:id"
-                  element={
-                    <RequirePermission permission="produtos" fallback={landingPath}>
-                      <ProductForm />
-                    </RequirePermission>
-                  }
-                />
+                      </RequireNovoOuProdutos>
+                    }
+                  />
+                  <Route
+                    path="/hospital/:hospitalId/cadastro-produtos"
+                    element={
+                      <RequireNovoOuProdutos>
+                        <RedirectCadastroProdutosFromHospital />
+                      </RequireNovoOuProdutos>
+                    }
+                  />
+                  <Route
+                    path="/hospital/:hospitalId/produto/novo"
+                    element={
+                      <RequirePermission permission="novo_produto" fallback={landingPath}>
+                        <ProductForm />
+                      </RequirePermission>
+                    }
+                  />
+                  <Route
+                    path="/hospital/:hospitalId/produto/:id"
+                    element={
+                      <RequirePermission permission="produtos" fallback={landingPath}>
+                        <ProductForm />
+                      </RequirePermission>
+                    }
+                  />
 
-                <Route
-                  path="/hospital/:hospitalId/catalogo"
-                  element={
-                    <RequireGerarCatalogo>
-                      <CatalogPreview />
-                    </RequireGerarCatalogo>
-                  }
-                />
+                  <Route
+                    path="/hospital/:hospitalId/catalogo"
+                    element={
+                      <RequireGerarCatalogo>
+                        <CatalogPreview />
+                      </RequireGerarCatalogo>
+                    }
+                  />
 
-                <Route path="/catalogo" element={<Navigate to="/" replace />} />
-                <Route path="/produto/novo" element={<Navigate to="/" replace />} />
-                <Route path="/produto/:id" element={<LegacyProductRedirect />} />
+                  <Route path="/catalogo" element={<Navigate to="/" replace />} />
+                  <Route path="/produto/novo" element={<Navigate to="/" replace />} />
+                  <Route path="/produto/:id" element={<LegacyProductRedirect />} />
 
-                <Route path="/config" element={<SettingsRouteGate />} />
-                <Route path="/cores" element={<ColorsPage />} />
-                <Route path="/perfil" element={<ProfilePage />} />
-              </Route>
+                  <Route path="/config" element={<SettingsRouteGate />} />
+                  <Route path="/cores" element={<ColorsPage />} />
+                  <Route path="/perfil" element={<ProfilePage />} />
+                </Route>
 
-              <Route path="*" element={<Navigate to={landingPath} replace />} />
-            </Routes>
+                <Route path="*" element={<Navigate to={landingPath} replace />} />
+              </Routes>
+            </Suspense>
           </BrowserRouter>
         </TooltipProvider>
       </ThemeProvider>

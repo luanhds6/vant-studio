@@ -1,4 +1,5 @@
-import { cn } from "@/lib/utils";
+import { useEffect, useState } from "react";
+import { useTheme } from "next-themes";
 
 const RIBBON_A = "M-40 200 C 20 165 50 200 100 100 C 160 0 220 200 300 100 C 380 10 450 100 500 20 C 510 8 520 4 520 0";
 const RIBBON_C = "M-25 200 C 20 200 100 200 200 200 C 280 200 320 40 400 20 C 460 8 500 2 520 0";
@@ -140,10 +141,17 @@ function LightWaves() {
 }
 
 export function SystemWavesBackground() {
+  const { resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   return (
     <div className="pointer-events-none fixed bottom-0 right-0 z-0 h-64 w-[min(100%,45rem)] overflow-hidden opacity-70 dark:opacity-40 [mask-image:linear-gradient(to_right,transparent_0%,black_15%,black_100%)]">
-      <DarkWaves />
-      <LightWaves />
+      {mounted && resolvedTheme === "dark" ? <DarkWaves /> : null}
+      {mounted && resolvedTheme !== "dark" ? <LightWaves /> : null}
     </div>
   );
 }

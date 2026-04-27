@@ -136,6 +136,16 @@
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .vant-app-bg::before {
+    animation: none;
+  }
+
+  .vant-page-shell {
+    animation: none;
+  }
+}
+
 @layer components {
   /* Fundo fluido + ondas (camadas fixas) */
   .vant-app-bg {

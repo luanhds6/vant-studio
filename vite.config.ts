@@ -28,4 +28,21 @@ export default defineConfig(({ mode }) => ({
     },
     dedupe: ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime"],
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes("node_modules")) {
+            if (id.includes("@supabase")) return "supabase";
+            if (id.includes("@radix-ui")) return "radix";
+            if (id.includes("lucide-react")) return "icons";
+            if (id.includes("react-dom") || id.includes("react-router")) return "react-vendor";
+            if (id.includes("react")) return "react-vendor";
+            if (id.includes("@tanstack/react-query")) return "query";
+          }
+        },
+      },
+    },
+    chunkSizeWarningLimit: 900,
+  },
 }));

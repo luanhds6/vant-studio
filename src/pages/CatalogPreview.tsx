@@ -13,8 +13,6 @@ import { Label } from "@/components/ui/label";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ArrowLeft, Download, Eye, Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import html2canvas from "html2canvas";
-import jsPDF from "jspdf";
 
 const slug = (s: string) =>
   s
@@ -88,6 +86,10 @@ const CatalogPreview = () => {
     await new Promise((r) => setTimeout(r, 500));
 
     try {
+      const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+        import("html2canvas"),
+        import("jspdf"),
+      ]);
       const isLandscape = catalogOrientation === "landscape";
       const pdf = new jsPDF(isLandscape ? "l" : "p", "mm", "a4");
       const pdfWidth = isLandscape ? 297 : 210;
@@ -222,7 +224,13 @@ const CatalogPreview = () => {
                 >
                   <Checkbox checked={selected.includes(p.id)} onCheckedChange={() => toggleProduct(p.id)} />
                   {p.imagemPrincipal && (
-                    <img src={p.imagemPrincipal} alt="" className="h-10 w-10 rounded border object-contain" />
+                    <img
+                      src={p.imagemPrincipal}
+                      alt=""
+                      className="h-10 w-10 rounded border object-contain"
+                      loading="lazy"
+                      decoding="async"
+                    />
                   )}
                   <div className="min-w-0 flex-1">
                     <div className="truncate font-medium">{p.nome}</div>
