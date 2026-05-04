@@ -5,14 +5,12 @@ COPY package*.json ./
 # Use npm ci para instalações mais rápidas e consistentes em CI/CD
 RUN npm ci
 COPY . .
-# Vite injeta VITE_* no bundle no momento do build — precisam existir AQUI, não só no container em execução.
-# No Easypanel: use variáveis de ambiente de *build* / build args (não só "Environment" do app em runtime).
+# Vite injeta VITE_* no bundle no build — os nomes têm de bater com import.meta.env em src (ver src/lib/supabase.ts).
+# No Easypanel: defina no *build* do Docker: VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY (chave anon/public do painel do Supabase).
 ARG VITE_SUPABASE_URL
-ARG VITE_SUPABASE_PUBLISHABLE_KEY
-ARG VITE_SUPABASE_PROJECT_ID
+ARG VITE_SUPABASE_ANON_KEY
 ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
-ENV VITE_SUPABASE_PUBLISHABLE_KEY=$VITE_SUPABASE_PUBLISHABLE_KEY
-ENV VITE_SUPABASE_PROJECT_ID=$VITE_SUPABASE_PROJECT_ID
+ENV VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
 RUN npm run build:prod
 
 # Estágio de produção
