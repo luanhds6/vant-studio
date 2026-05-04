@@ -21,6 +21,10 @@ export default defineConfig(({ mode }) => ({
       overlay: false,
     },
   },
+  preview: {
+    // Docker / Easypanel: o proxy envia Host=domínio público; sem isso o preview responde "Blocked request".
+    allowedHosts: true,
+  },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
     alias: {
