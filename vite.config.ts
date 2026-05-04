@@ -38,7 +38,8 @@ export default defineConfig(({ mode }) => ({
         manualChunks(id) {
           if (id.includes("node_modules")) {
             if (id.includes("@supabase")) return "supabase";
-            if (id.includes("@radix-ui")) return "radix";
+            // Radix + React no mesmo chunk evita "Cannot read properties of undefined (reading 'forwardRef')" em produção
+            if (id.includes("@radix-ui")) return "react-vendor";
             if (id.includes("lucide-react")) return "icons";
             if (id.includes("react-dom") || id.includes("react-router")) return "react-vendor";
             if (id.includes("react")) return "react-vendor";
