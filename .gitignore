@@ -12,6 +12,14 @@ dist
 dist-ssr
 *.local
 
+# Segredos e ambiente local (nunca versionar)
+.env
+.env.*
+!.env.example
+
+# CLI Supabase local (credenciais / cache)
+supabase/.temp/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

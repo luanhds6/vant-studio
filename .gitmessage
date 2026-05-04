@@ -1,0 +1,5 @@
+# Primeira linha: resumo curto (imperativo, ~50 caracteres)
+# Ex.: feat: adiciona diálogo de senha obrigatória
+# Ex.: fix: evita 401 na Edge Function delete-user
+#
+# Corpo (opcional): o quê mudou, porquê, breaking changes, issue #n
