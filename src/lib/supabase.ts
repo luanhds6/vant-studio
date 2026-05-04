@@ -46,8 +46,8 @@ export async function clearInvalidSupabaseSession(): Promise<void> {
 }
 
 /**
- * JWT do utilizador para Edge Functions com `verify_jwt`.
- * Sem sessão, o cliente usa a anon key como Bearer e o gateway devolve 401.
+ * Garante sessão válida antes de invocar Edge Functions.
+ * O cliente (`fetchWithAuth`) envia automaticamente `apikey` + `Authorization: Bearer <access_token>`.
  */
 export async function getSessionAccessTokenOrThrow(
   message = 'Sessão expirada. Entre novamente.'

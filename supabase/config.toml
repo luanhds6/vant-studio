@@ -1,3 +1,9 @@
 # Gateway auth: validação JWT na função (Authorization + perfil).
 [functions.delete-user]
 verify_jwt = false
+
+[functions.update-user-auth]
+verify_jwt = false
+
+[functions.create-user]
+verify_jwt = false

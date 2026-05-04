@@ -30,7 +30,6 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    /** Sem armazenamento de sessão no Edge, getUser() sem argumentos falha — usar o JWT explicitamente. */
     const accessToken = authHeader.replace(/^Bearer\s+/i, "").trim();
     if (!accessToken) {
       return new Response(JSON.stringify({ error: "Missing bearer token" }), {
@@ -65,21 +64,46 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const body = (await req.json()) as { userId?: string };
-    const targetId = body.userId;
-    if (!targetId || typeof targetId !== "string") {
-      return new Response(JSON.stringify({ error: "userId is required" }), {
-        status: 400,
-        headers: { ...cors, "Content-Type": "application/json" },
-      });
+    const body = (await req.json()) as {
+      email?: string;
+      password?: string;
+      name?: string;
+      role?: string;
+    };
+
+    const email = typeof body.email === "string" ? body.email.trim() : "";
+    const password = typeof body.password === "string" ? body.password : "";
+    const name = typeof body.name === "string" ? body.name.trim() : "";
+    const roleRaw = typeof body.role === "string" ? body.role.trim() : "user";
+
+    if (!email || !password || !name) {
+      return new Response(
+        JSON.stringify({ error: "email, password e name são obrigatórios." }),
+        {
+          status: 400,
+          headers: { ...cors, "Content-Type": "application/json" },
+        }
+      );
     }
 
-    if (targetId === caller.id) {
-      return new Response(JSON.stringify({ error: "Cannot delete own account" }), {
-        status: 400,
-        headers: { ...cors, "Content-Type": "application/json" },
-      });
+    if (password.length < 6) {
+      return new Response(
+        JSON.stringify({ error: "A senha deve ter pelo menos 6 caracteres." }),
+        {
+          status: 400,
+          headers: { ...cors, "Content-Type": "application/json" },
+        }
+      );
     }
+
+    const roleLc = roleRaw.toLowerCase();
+    const roleStored =
+      roleLc === "admin" ||
+      roleLc === "administrador" ||
+      roleLc === "administrator" ||
+      roleLc === "master"
+        ? "admin"
+        : "user";
 
     const { data: profile, error: profileErr } = await userClient
       .from("profiles")
@@ -94,12 +118,12 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const roleLc = (profile?.role ?? "").toString().trim().toLowerCase();
+    const callerRoleLc = (profile?.role ?? "").toString().trim().toLowerCase();
     const isAdminRole =
-      roleLc === "admin" ||
-      roleLc === "administrador" ||
-      roleLc === "administrator" ||
-      roleLc === "master";
+      callerRoleLc === "admin" ||
+      callerRoleLc === "administrador" ||
+      callerRoleLc === "administrator" ||
+      callerRoleLc === "master";
     const canManage =
       isAdminRole ||
       (Array.isArray(profile?.permissions) && profile.permissions.includes("usuarios"));
@@ -115,15 +139,35 @@ Deno.serve(async (req: Request) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    const { error: delErr } = await admin.auth.admin.deleteUser(targetId);
-    if (delErr) {
-      return new Response(JSON.stringify({ error: delErr.message }), {
+    const { data: created, error: createErr } = await admin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: {
+        name,
+        role: roleStored,
+      },
+    });
+
+    if (createErr) {
+      return new Response(JSON.stringify({ error: createErr.message }), {
         status: 400,
         headers: { ...cors, "Content-Type": "application/json" },
       });
     }
 
-    return new Response(JSON.stringify({ ok: true }), {
+    const userId = created.user?.id;
+    if (!userId) {
+      return new Response(
+        JSON.stringify({ error: "Utilizador criado sem id." }),
+        {
+          status: 500,
+          headers: { ...cors, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    return new Response(JSON.stringify({ ok: true, userId }), {
       headers: { ...cors, "Content-Type": "application/json" },
     });
   } catch (e) {

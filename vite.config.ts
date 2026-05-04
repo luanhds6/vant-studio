@@ -10,6 +10,8 @@ const pkg = JSON.parse(readFileSync(path.resolve(__dirname, "package.json"), "ut
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  /** Mesmo diretório que `vite.config.ts`, para encontrar `.env` mesmo com `cwd` diferente. */
+  envDir: path.resolve(__dirname),
   define: {
     /** Versão semântica única: altere o campo `version` do package.json ao publicar mudanças. */
     __APP_VERSION__: JSON.stringify(pkg.version),

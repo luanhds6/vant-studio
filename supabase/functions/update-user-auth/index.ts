@@ -30,7 +30,6 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    /** Sem armazenamento de sessão no Edge, getUser() sem argumentos falha — usar o JWT explicitamente. */
     const accessToken = authHeader.replace(/^Bearer\s+/i, "").trim();
     if (!accessToken) {
       return new Response(JSON.stringify({ error: "Missing bearer token" }), {
@@ -65,7 +64,12 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const body = (await req.json()) as { userId?: string };
+    const body = (await req.json()) as {
+      userId?: string;
+      password?: string;
+      email?: string;
+    };
+
     const targetId = body.userId;
     if (!targetId || typeof targetId !== "string") {
       return new Response(JSON.stringify({ error: "userId is required" }), {
@@ -74,11 +78,31 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    if (targetId === caller.id) {
-      return new Response(JSON.stringify({ error: "Cannot delete own account" }), {
-        status: 400,
-        headers: { ...cors, "Content-Type": "application/json" },
-      });
+    const password =
+      typeof body.password === "string" ? body.password.trim() : "";
+    const emailRaw =
+      typeof body.email === "string" ? body.email.trim() : "";
+
+    if (!password && !emailRaw) {
+      return new Response(
+        JSON.stringify({
+          error: "Informe nova senha ou novo e-mail.",
+        }),
+        {
+          status: 400,
+          headers: { ...cors, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    if (password && password.length < 6) {
+      return new Response(
+        JSON.stringify({ error: "A senha deve ter pelo menos 6 caracteres." }),
+        {
+          status: 400,
+          headers: { ...cors, "Content-Type": "application/json" },
+        }
+      );
     }
 
     const { data: profile, error: profileErr } = await userClient
@@ -100,11 +124,13 @@ Deno.serve(async (req: Request) => {
       roleLc === "administrador" ||
       roleLc === "administrator" ||
       roleLc === "master";
-    const canManage =
+    const canManageOthers =
       isAdminRole ||
-      (Array.isArray(profile?.permissions) && profile.permissions.includes("usuarios"));
+      (Array.isArray(profile?.permissions) &&
+        profile.permissions.includes("usuarios"));
 
-    if (!canManage) {
+    const isSelf = targetId === caller.id;
+    if (!canManageOthers && !isSelf) {
       return new Response(JSON.stringify({ error: "Forbidden" }), {
         status: 403,
         headers: { ...cors, "Content-Type": "application/json" },
@@ -115,9 +141,17 @@ Deno.serve(async (req: Request) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    const { error: delErr } = await admin.auth.admin.deleteUser(targetId);
-    if (delErr) {
-      return new Response(JSON.stringify({ error: delErr.message }), {
+    const attrs: { password?: string; email?: string } = {};
+    if (password) attrs.password = password;
+    if (emailRaw) attrs.email = emailRaw;
+
+    const { error: updErr } = await admin.auth.admin.updateUserById(
+      targetId,
+      attrs
+    );
+
+    if (updErr) {
+      return new Response(JSON.stringify({ error: updErr.message }), {
         status: 400,
         headers: { ...cors, "Content-Type": "application/json" },
       });

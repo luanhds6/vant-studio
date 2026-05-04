@@ -61,9 +61,11 @@ function userInitials(name: string) {
 }
 
 export function AppSidebar() {
-  const { state } = useSidebar();
+  const { state, isMobile, setOpenMobile } = useSidebar();
   const collapsed = state === "collapsed";
-  const { canAccess, logout, currentUser } = useAuthStore();
+  const canAccess = useAuthStore((s) => s.canAccess);
+  const logout = useAuthStore((s) => s.logout);
+  const currentUser = useAuthStore((s) => s.currentUser);
 
   const items = menuItems.filter((item) => {
     if (item.anyOf) {
@@ -139,7 +141,13 @@ export function AppSidebar() {
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton
-                onClick={() => logout()}
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (isMobile) setOpenMobile(false);
+                  void logout();
+                }}
                 className="w-full justify-start rounded-xl font-medium text-destructive transition duration-300 hover:scale-[1.01] hover:bg-destructive/10 hover:text-destructive"
               >
                 <LogOut className="h-4 w-4" />

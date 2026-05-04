@@ -54,6 +54,9 @@ export interface User {
 
 type NewUserInput = Omit<User, "id" | "createdAt"> & { password: string };
 
+/** Atualização pelo painel de utilizadores (senha vai para Auth via Edge Function). */
+export type AdminUserUpdate = Partial<User> & { password?: string };
+
 interface AuthState {
   isAuthenticated: boolean;
   currentUser: User | null;
@@ -63,7 +66,7 @@ interface AuthState {
   logout: () => Promise<void>;
   initialize: () => Promise<void>;
   addUser: (user: NewUserInput) => Promise<void>;
-  updateUser: (id: string, updates: Partial<User>) => Promise<void>;
+  updateUser: (id: string, updates: AdminUserUpdate) => Promise<void>;
   deleteUser: (id: string) => Promise<void>;
   /** O próprio utilizador: nome, e-mail, foto (tabela public.profiles + Auth se o e-mail mudar). */
   updateOwnProfile: (payload: {
@@ -145,6 +148,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     const { data: authSub } = supabase.auth.onAuthStateChange(async (event, session) => {
       try {
+        /** `initialize()` já aplicou a sessão inicial; repetir aqui duplica pedidos a `profiles` e deixa a UI mais lenta. */
+        if (event === "INITIAL_SESSION") {
+          return;
+        }
+
         if (event === "SIGNED_IN" && session?.user) {
           const { data: profile, error: profileError } = await supabase
             .from("profiles")
@@ -221,14 +229,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: async () => {
+    set({ isAuthenticated: false, currentUser: null, users: [] });
     try {
-      const { error } = await supabase.auth.signOut();
+      /**
+       * `signOut()` sem opções tenta revogar tokens no servidor e pode bloquear em rede lenta.
+       * Limpar primeiro em local devolve o utilizador ao login de imediato; o listener aplica SIGNED_OUT em redundância.
+       */
+      const { error } = await supabase.auth.signOut({ scope: "local" });
       if (error) {
-        console.error('Erro ao deslogar no Supabase:', error);
+        console.error("Erro ao deslogar (sessão local):", error);
+        await clearInvalidSupabaseSession();
       }
     } catch (err) {
-      console.error('Erro inesperado no logout:', err);
+      console.error("Erro inesperado no logout:", err);
+      await clearInvalidSupabaseSession();
     }
+    void supabase.auth.signOut({ scope: "global" }).catch(() => {
+      /* revogação no servidor: melhor-esforço, não bloqueia UI */
+    });
   },
 
   fetchUsers: async () => {
@@ -252,52 +270,50 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       throw new Error("Sem permissão para criar usuários.");
     }
 
-    const {
-      data: { session: adminSession },
-    } = await supabase.auth.getSession();
-    if (!adminSession?.access_token || !adminSession.refresh_token) {
-      throw new Error("Sessão inválida. Entre novamente.");
-    }
-
     const email = userData.email.trim();
     const name = userData.name.trim();
-
-    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-      email,
-      password: userData.password,
-      options: {
-        data: { name },
-      },
-    });
-
-    const restoreAdminSession = async () => {
-      const { error: sessionError } = await supabase.auth.setSession({
-        access_token: adminSession.access_token,
-        refresh_token: adminSession.refresh_token,
-      });
-      if (sessionError) {
-        console.error("Erro ao restaurar sessão do administrador:", sessionError);
-      }
-    };
-
-    if (signUpError) {
-      throw signUpError;
-    }
-
-    await restoreAdminSession();
-
-    const newUserId = signUpData.user?.id;
-    if (!newUserId) {
-      throw new Error(
-        "Conta não criada: confira no Supabase se o registo público está permitido e se a confirmação por e-mail não bloqueia a criação."
-      );
-    }
 
     const roleStored = normalizeRole(userData.role);
     const permissionsStored =
       roleStored === "admin"
         ? ALL_PERMISSIONS
         : userData.permissions;
+
+    await getSessionAccessTokenOrThrow();
+
+    const { data: fnData, error: fnError } = await supabase.functions.invoke<{
+      ok?: boolean;
+      userId?: string;
+      error?: string;
+    }>("create-user", {
+      body: {
+        email,
+        password: userData.password,
+        name,
+        role: roleStored,
+      },
+    });
+
+    if (fnError) {
+      let msg = fnError.message;
+      if (fnError instanceof FunctionsHttpError) {
+        try {
+          const j = (await fnError.context.json()) as { error?: string };
+          if (j?.error) msg = j.error;
+        } catch {
+          /* ignore */
+        }
+      }
+      throw new Error(msg);
+    }
+    if (fnData?.error) {
+      throw new Error(fnData.error);
+    }
+
+    const newUserId = fnData?.userId;
+    if (!newUserId) {
+      throw new Error("Conta não criada: resposta inválida do servidor.");
+    }
 
     const { error: profileError } = await supabase.from("profiles").upsert(
       {
@@ -320,6 +336,51 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   updateUser: async (id, updates) => {
+    const pwdRaw = updates.password?.trim() ?? "";
+    const existing = get().users.find((u) => u.id === id);
+    const emailTrim =
+      updates.email !== undefined ? updates.email.trim() : undefined;
+    const emailChanged =
+      emailTrim !== undefined &&
+      existing !== undefined &&
+      emailTrim.toLowerCase() !== (existing.email || "").toLowerCase();
+
+    const needsAuthUpdate =
+      pwdRaw.length > 0 ||
+      (emailChanged && emailTrim !== undefined);
+
+    if (needsAuthUpdate) {
+      await getSessionAccessTokenOrThrow();
+      const body: { userId: string; password?: string; email?: string } = {
+        userId: id,
+      };
+      if (pwdRaw.length > 0) body.password = pwdRaw;
+      if (emailChanged && emailTrim) body.email = emailTrim;
+
+      const { data, error } = await supabase.functions.invoke<{
+        ok?: boolean;
+        error?: string;
+      }>("update-user-auth", {
+        body,
+      });
+
+      if (error) {
+        let msg = error.message;
+        if (error instanceof FunctionsHttpError) {
+          try {
+            const j = (await error.context.json()) as { error?: string };
+            if (j?.error) msg = j.error;
+          } catch {
+            /* ignore */
+          }
+        }
+        throw new Error(msg);
+      }
+      if (data?.error) {
+        throw new Error(data.error);
+      }
+    }
+
     const roleNorm =
       updates.role !== undefined ? normalizeRole(updates.role as string) : undefined;
     const permissionsDb =
@@ -329,6 +390,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     const patch: Record<string, unknown> = {};
     if (updates.name !== undefined) patch.name = updates.name;
+    if (emailTrim !== undefined) patch.email = emailTrim;
     if (roleNorm !== undefined) patch.role = roleNorm;
     if (permissionsDb !== undefined) patch.permissions = permissionsDb;
     if (updates.profilePhoto !== undefined) patch.profile_photo = updates.profilePhoto;
@@ -342,7 +404,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       throw error;
     }
 
-    get().fetchUsers();
+    await get().fetchUsers();
+
+    const { currentUser } = get();
+    if (currentUser?.id === id) {
+      const refreshed = get().users.find((u) => u.id === id);
+      if (refreshed) {
+        set({ currentUser: refreshed });
+      }
+    }
   },
 
   updateOwnProfile: async (payload) => {
@@ -486,16 +556,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       throw new Error("Sem permissão para excluir utilizadores.");
     }
 
-    const accessToken = await getSessionAccessTokenOrThrow();
+    await getSessionAccessTokenOrThrow();
 
     const { data, error } = await supabase.functions.invoke<{
       ok?: boolean;
       error?: string;
     }>("delete-user", {
       body: { userId: id },
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
     });
 
     if (error) {
