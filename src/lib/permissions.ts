@@ -38,20 +38,39 @@ export const PERMISSION_HELP: Record<PermissionKey, string> = {
   usuarios: "Gerencia usuários e permissões de acesso.",
 };
 
+/** Valores possíveis na coluna profiles.role (evita bloquear admin por variação de texto na BD). */
+const ADMIN_ROLE_ALIASES = new Set([
+  "admin",
+  "administrador",
+  "administrator",
+  "master",
+  "administrador master",
+]);
+
+/**
+ * Normaliza o papel vindo do Postgres / formulários para o modelo da app.
+ */
+export function normalizeRole(raw: string | null | undefined): "admin" | "user" {
+  const v = (raw ?? "").toString().trim().toLowerCase();
+  if (ADMIN_ROLE_ALIASES.has(v)) return "admin";
+  return "user";
+}
+
 export const normalizePermissions = (
-  role: "admin" | "user",
+  role: "admin" | "user" | string | undefined,
   permissions?: PermissionKey[]
 ): PermissionKey[] => {
-  if (role === "admin") return ALL_PERMISSIONS;
+  if (normalizeRole(role) === "admin") return ALL_PERMISSIONS;
   if (!permissions || permissions.length === 0) return DEFAULT_USER_PERMISSIONS;
   return Array.from(new Set(permissions));
 };
 
+/** Administrador = acesso a todas as áreas e ações, independentemente do array permissions na BD. */
 export const hasUserPermission = (
-  role: "admin" | "user",
+  role: "admin" | "user" | string | undefined,
   permissions: PermissionKey[] | undefined,
   permission: PermissionKey
 ): boolean => {
-  if (role === "admin") return true;
+  if (normalizeRole(role) === "admin") return true;
   return (permissions || []).includes(permission);
 };

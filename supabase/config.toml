@@ -1,0 +1,3 @@
+# Gateway auth: validação JWT na função (Authorization + perfil).
+[functions.delete-user]
+verify_jwt = false

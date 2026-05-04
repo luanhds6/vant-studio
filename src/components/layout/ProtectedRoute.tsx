@@ -1,6 +1,7 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuthStore } from "@/store/authStore";
 import { useProductStore } from "@/store/productStore";
+import { MandatoryPasswordChangeModal } from "@/components/auth/MandatoryPasswordChangeModal";
 import { AppLayout } from "./AppLayout";
 import { PageTransition } from "./PageTransition";
 
@@ -22,17 +23,12 @@ export function ProtectedLayout() {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  if (productsLoading) {
-    return (
-      <AppLayout>
-        <ProtectedDataLoading />
-      </AppLayout>
-    );
-  }
+  const inner = productsLoading ? <ProtectedDataLoading /> : <PageTransition />;
 
   return (
-    <AppLayout>
-      <PageTransition />
-    </AppLayout>
+    <>
+      <MandatoryPasswordChangeModal />
+      <AppLayout>{inner}</AppLayout>
+    </>
   );
 }

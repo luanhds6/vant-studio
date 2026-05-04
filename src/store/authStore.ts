@@ -1,6 +1,45 @@
 import { create } from "zustand";
-import { supabase } from "@/lib/supabase";
-import { PermissionKey, hasUserPermission } from "@/lib/permissions";
+import { FunctionsHttpError } from "@supabase/functions-js";
+import {
+  clearInvalidSupabaseSession,
+  getSessionAccessTokenOrThrow,
+  isInvalidStoredSessionError,
+  supabase,
+} from "@/lib/supabase";
+import {
+  ALL_PERMISSIONS,
+  PermissionKey,
+  hasUserPermission,
+  normalizePermissions,
+  normalizeRole,
+} from "@/lib/permissions";
+
+/** Constrói `User` a partir da linha `profiles` com papel e permissões normalizados (admin = lista completa). */
+function mapProfileToUser(
+  profile: {
+    id: string;
+    name: string | null;
+    email: string | null;
+    profile_photo?: string | null;
+    role: string | null;
+    must_change_password?: boolean | null;
+    permissions?: unknown;
+    created_at: string;
+  },
+  sessionEmail?: string | null
+): User {
+  const role = normalizeRole(profile.role);
+  return {
+    id: profile.id,
+    name: profile.name || "",
+    email: profile.email || sessionEmail || "",
+    profilePhoto: profile.profile_photo || "",
+    role,
+    mustChangePassword: Boolean(profile.must_change_password),
+    permissions: normalizePermissions(role, profile.permissions as PermissionKey[]),
+    createdAt: profile.created_at,
+  };
+}
 
 export interface User {
   id: string;
@@ -13,6 +52,8 @@ export interface User {
   createdAt: string;
 }
 
+type NewUserInput = Omit<User, "id" | "createdAt"> & { password: string };
+
 interface AuthState {
   isAuthenticated: boolean;
   currentUser: User | null;
@@ -21,7 +62,7 @@ interface AuthState {
   login: (email: string, pass: string) => Promise<{ success: boolean; message: string }>;
   logout: () => Promise<void>;
   initialize: () => Promise<void>;
-  addUser: (user: Omit<User, "id" | "createdAt">) => Promise<void>;
+  addUser: (user: NewUserInput) => Promise<void>;
   updateUser: (id: string, updates: Partial<User>) => Promise<void>;
   deleteUser: (id: string) => Promise<void>;
   /** O próprio utilizador: nome, e-mail, foto (tabela public.profiles + Auth se o e-mail mudar). */
@@ -32,6 +73,8 @@ interface AuthState {
   }) => Promise<{ success: boolean; message: string }>;
   /** Revalida a senha atual e define uma nova. */
   changeOwnPassword: (currentPassword: string, newPassword: string) => Promise<{ success: boolean; message: string }>;
+  /** Após login com senha temporária: define nova senha e remove a obrigatoriedade no perfil. */
+  completeMandatoryPasswordChange: (newPassword: string) => Promise<{ success: boolean; message: string }>;
   canAccess: (permission: PermissionKey) => boolean;
   fetchUsers: () => Promise<void>;
 }
@@ -46,10 +89,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   initialize: async () => {
     try {
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      
-      if (sessionError) {
-        console.error('Erro ao buscar sessão no Supabase Auth:', sessionError);
+      let {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
+
+      if (sessionError && isInvalidStoredSessionError(sessionError)) {
+        console.warn(
+          "Sessão guardada inválida ou expirada; a limpar tokens locais.",
+          sessionError.message
+        );
+        await clearInvalidSupabaseSession();
+        ({
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession());
+      }
+
+      if (sessionError && !session) {
+        console.error("Erro ao buscar sessão no Supabase Auth:", sessionError);
       }
 
       if (session?.user) {
@@ -64,16 +122,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
 
         if (profile) {
-          const user: User = {
-            id: profile.id,
-            name: profile.name || '',
-            email: profile.email || session.user.email || '',
-            profilePhoto: profile.profile_photo || '',
-            role: profile.role as 'admin' | 'user',
-            mustChangePassword: profile.must_change_password || false,
-            permissions: (profile.permissions as PermissionKey[]) || [],
-            createdAt: profile.created_at,
-          };
+          const user = mapProfileToUser(profile, session.user.email);
           set({ isAuthenticated: true, currentUser: user, isLoading: false });
           if (user.role === 'admin') {
             get().fetchUsers();
@@ -108,16 +157,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           }
 
           if (profile) {
-            const user: User = {
-              id: profile.id,
-              name: profile.name || "",
-              email: profile.email || session.user.email || "",
-              profilePhoto: profile.profile_photo || "",
-              role: profile.role as "admin" | "user",
-              mustChangePassword: profile.must_change_password || false,
-              permissions: (profile.permissions as PermissionKey[]) || [],
-              createdAt: profile.created_at,
-            };
+            const user = mapProfileToUser(profile, session.user.email);
             set({ isAuthenticated: true, currentUser: user });
             if (user.role === "admin") {
               get().fetchUsers();
@@ -164,16 +204,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
 
         if (profile) {
-          const user: User = {
-            id: profile.id,
-            name: profile.name || '',
-            email: profile.email || authUser.email || '',
-            profilePhoto: profile.profile_photo || '',
-            role: profile.role as 'admin' | 'user',
-            mustChangePassword: profile.must_change_password || false,
-            permissions: (profile.permissions as PermissionKey[]) || [],
-            createdAt: profile.created_at,
-          };
+          const user = mapProfileToUser(profile, authUser.email);
           set({ isAuthenticated: true, currentUser: user });
           if (user.role === 'admin') {
             get().fetchUsers();
@@ -210,38 +241,101 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return;
     }
 
-    const users: User[] = profiles.map((p) => ({
-      id: p.id,
-      name: p.name || '',
-      email: p.email || '',
-      profilePhoto: p.profile_photo || '',
-      role: p.role as 'admin' | 'user',
-      mustChangePassword: p.must_change_password || false,
-      permissions: (p.permissions as PermissionKey[]) || [],
-      createdAt: p.created_at,
-    }));
+    const users: User[] = profiles.map((p) => mapProfileToUser(p));
 
     set({ users });
   },
 
   addUser: async (userData) => {
-    // In Supabase, adding a user is usually done via Auth API
-    // This would require a service role or a specific edge function if done from the client
-    // For now, we'll assume the user is created via Supabase Auth and the trigger handles the profile
-    console.warn('addUser should be implemented via Supabase Auth/Edge Functions');
+    const { currentUser } = get();
+    if (!currentUser || !hasUserPermission(currentUser.role, currentUser.permissions, "usuarios")) {
+      throw new Error("Sem permissão para criar usuários.");
+    }
+
+    const {
+      data: { session: adminSession },
+    } = await supabase.auth.getSession();
+    if (!adminSession?.access_token || !adminSession.refresh_token) {
+      throw new Error("Sessão inválida. Entre novamente.");
+    }
+
+    const email = userData.email.trim();
+    const name = userData.name.trim();
+
+    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+      email,
+      password: userData.password,
+      options: {
+        data: { name },
+      },
+    });
+
+    const restoreAdminSession = async () => {
+      const { error: sessionError } = await supabase.auth.setSession({
+        access_token: adminSession.access_token,
+        refresh_token: adminSession.refresh_token,
+      });
+      if (sessionError) {
+        console.error("Erro ao restaurar sessão do administrador:", sessionError);
+      }
+    };
+
+    if (signUpError) {
+      throw signUpError;
+    }
+
+    await restoreAdminSession();
+
+    const newUserId = signUpData.user?.id;
+    if (!newUserId) {
+      throw new Error(
+        "Conta não criada: confira no Supabase se o registo público está permitido e se a confirmação por e-mail não bloqueia a criação."
+      );
+    }
+
+    const roleStored = normalizeRole(userData.role);
+    const permissionsStored =
+      roleStored === "admin"
+        ? ALL_PERMISSIONS
+        : userData.permissions;
+
+    const { error: profileError } = await supabase.from("profiles").upsert(
+      {
+        id: newUserId,
+        name,
+        email,
+        role: roleStored,
+        permissions: permissionsStored,
+        must_change_password: userData.mustChangePassword,
+      },
+      { onConflict: "id" }
+    );
+
+    if (profileError) {
+      console.error("Erro ao guardar perfil do novo usuário:", profileError);
+      throw profileError;
+    }
+
+    await get().fetchUsers();
   },
 
   updateUser: async (id, updates) => {
-    const { error } = await supabase
-      .from("profiles")
-      .update({
-        name: updates.name,
-        role: updates.role,
-        permissions: updates.permissions,
-        profile_photo: updates.profilePhoto,
-        must_change_password: updates.mustChangePassword,
-      })
-      .eq("id", id);
+    const roleNorm =
+      updates.role !== undefined ? normalizeRole(updates.role as string) : undefined;
+    const permissionsDb =
+      roleNorm === "admin"
+        ? ALL_PERMISSIONS
+        : updates.permissions;
+
+    const patch: Record<string, unknown> = {};
+    if (updates.name !== undefined) patch.name = updates.name;
+    if (roleNorm !== undefined) patch.role = roleNorm;
+    if (permissionsDb !== undefined) patch.permissions = permissionsDb;
+    if (updates.profilePhoto !== undefined) patch.profile_photo = updates.profilePhoto;
+    if (updates.mustChangePassword !== undefined)
+      patch.must_change_password = updates.mustChangePassword;
+
+    const { error } = await supabase.from("profiles").update(patch).eq("id", id);
 
     if (error) {
       console.error("Error updating user:", error);
@@ -331,9 +425,96 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     return { success: true, message: "ok" };
   },
 
+  completeMandatoryPasswordChange: async (newPassword: string) => {
+    const { currentUser } = get();
+    if (!currentUser) {
+      return { success: false, message: "Sessão inválida. Entre novamente." };
+    }
+    if (!currentUser.mustChangePassword) {
+      return { success: true, message: "ok" };
+    }
+    if (newPassword.length < 6) {
+      return {
+        success: false,
+        message: "A nova senha deve ter pelo menos 6 caracteres.",
+      };
+    }
+
+    const { error: authErr } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+    if (authErr) {
+      return {
+        success: false,
+        message: authErr.message || "Não foi possível definir a nova senha.",
+      };
+    }
+
+    const { error: profileErr } = await supabase
+      .from("profiles")
+      .update({ must_change_password: false })
+      .eq("id", currentUser.id);
+
+    if (profileErr) {
+      return {
+        success: false,
+        message:
+          profileErr.message ||
+          "Senha atualizada, mas não foi possível atualizar o perfil. Tente de novo ou contacte o suporte.",
+      };
+    }
+
+    set({
+      currentUser: {
+        ...currentUser,
+        mustChangePassword: false,
+      },
+    });
+
+    return { success: true, message: "ok" };
+  },
+
   deleteUser: async (id) => {
-    // Deleting a user requires management API access
-    console.warn('deleteUser should be implemented via Supabase Management API/Edge Functions');
+    const { currentUser } = get();
+    if (!currentUser) {
+      throw new Error("Sessão inválida.");
+    }
+    if (id === currentUser.id) {
+      throw new Error("Não é possível excluir a própria conta.");
+    }
+    if (!hasUserPermission(currentUser.role, currentUser.permissions, "usuarios")) {
+      throw new Error("Sem permissão para excluir utilizadores.");
+    }
+
+    const accessToken = await getSessionAccessTokenOrThrow();
+
+    const { data, error } = await supabase.functions.invoke<{
+      ok?: boolean;
+      error?: string;
+    }>("delete-user", {
+      body: { userId: id },
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    if (error) {
+      let msg = error.message;
+      if (error instanceof FunctionsHttpError) {
+        try {
+          const j = (await error.context.json()) as { error?: string };
+          if (j?.error) msg = j.error;
+        } catch {
+          /* resposta não JSON */
+        }
+      }
+      throw new Error(msg);
+    }
+    if (data?.error) {
+      throw new Error(data.error);
+    }
+
+    await get().fetchUsers();
   },
 
   canAccess: (permission) => {

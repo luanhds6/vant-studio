@@ -154,7 +154,9 @@ export default function UsersManagement({ embedded = false }: UsersManagementPro
       setIsDialogOpen(false);
       resetForm();
     } catch (error) {
-      toast.error("Erro ao salvar usuário.");
+      const msg =
+        error instanceof Error ? error.message : "Erro ao salvar usuário.";
+      toast.error(msg);
     } finally {
       setIsSubmitting(false);
     }
@@ -170,7 +172,9 @@ export default function UsersManagement({ embedded = false }: UsersManagementPro
         await deleteUser(id);
         toast.success("Usuário excluído com sucesso.");
       } catch (error) {
-        toast.error("Erro ao excluir usuário.");
+        const msg =
+          error instanceof Error ? error.message : "Erro ao excluir usuário.";
+        toast.error(msg);
       }
     }
   };
