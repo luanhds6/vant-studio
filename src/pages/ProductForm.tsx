@@ -14,6 +14,7 @@ import { useDropzone } from "react-dropzone";
 import { toast } from "@/hooks/use-toast";
 import { ArrowLeft, Plus, X, Upload, Image as ImageIcon } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import { Factory } from "lucide-react";
 
 const generateId = () => crypto.randomUUID();
 
@@ -48,13 +49,15 @@ const ProductForm = () => {
   const { hospitalId, id } = useParams<{ hospitalId: string; id: string }>();
   const navigate = useNavigate();
   const canAccess = useAuthStore((s) => s.canAccess);
-  const { addProduct, updateProduct, getProduct, getHospital, availableColors } = useProductStore(
+  const { addProduct, updateProduct, getProduct, getHospital, availableColors, industries, fabricTypes } = useProductStore(
     useShallow((s) => ({
       addProduct: s.addProduct,
       updateProduct: s.updateProduct,
       getProduct: s.getProduct,
       getHospital: s.getHospital,
       availableColors: s.colors,
+      industries: s.industries,
+      fabricTypes: s.fabricTypes,
     })),
   );
   const isEditing = Boolean(id);
@@ -312,30 +315,52 @@ const ProductForm = () => {
       <Card>
         <CardHeader><CardTitle className="text-lg">Cores</CardTitle></CardHeader>
         <CardContent className="space-y-4">
-          {/* Cores Sugeridas */}
-          {availableColors.length > 0 && (
-            <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground uppercase">Cores Cadastradas (Clique para Adicionar)</Label>
-              <div className="flex flex-wrap gap-2 p-3 rounded-lg border bg-muted/30">
-                {availableColors.map((c) => (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => {
-                      if (!form.cores.some((x) => x.hex === c.hex)) {
-                        updateField("cores", [...form.cores, { id: generateId(), nome: c.nome, hex: c.hex }]);
-                        toast({ title: `Cor ${c.nome} adicionada` });
-                      } else {
-                        toast({ title: "Cor já adicionada", variant: "default" });
-                      }
-                    }}
-                    className="group flex items-center gap-2 px-2.5 py-1.5 rounded-md border bg-card hover:bg-accent hover:border-primary/50 transition-all text-xs font-medium"
-                  >
-                    <div className="w-3 h-3 rounded-full border shadow-sm group-hover:scale-110 transition-transform" style={{ backgroundColor: c.hex }} />
-                    {c.nome}
-                  </button>
-                ))}
-              </div>
+          {/* Cores Sugeridas (Agrupadas) */}
+          {industries.length > 0 && (
+            <div className="space-y-4">
+              <Label className="text-xs text-muted-foreground uppercase">Cores do Sistema (Clique para Adicionar)</Label>
+              {industries.map(ind => {
+                const indFabrics = fabricTypes.filter(f => f.industryId === ind.id);
+                if (indFabrics.length === 0) return null;
+                
+                return (
+                  <div key={ind.id} className="space-y-3 p-4 rounded-lg border bg-muted/10">
+                    <h4 className="font-semibold text-sm text-primary flex items-center gap-2">
+                      <Factory className="h-4 w-4" /> {ind.nome}
+                    </h4>
+                    {indFabrics.map(fab => {
+                      const fabColors = availableColors.filter(c => c.fabricTypeId === fab.id);
+                      if (fabColors.length === 0) return null;
+                      return (
+                        <div key={fab.id} className="space-y-2 pl-4 border-l-2 border-primary/20">
+                          <Label className="text-xs font-medium text-muted-foreground">{fab.nome}</Label>
+                          <div className="flex flex-wrap gap-2">
+                            {fabColors.map((c) => (
+                              <button
+                                key={c.id}
+                                type="button"
+                                onClick={() => {
+                                  if (!form.cores.some((x) => x.hex === c.hex)) {
+                                    updateField("cores", [...form.cores, { id: generateId(), nome: `${c.nome} ${c.codigo ? `(${c.codigo})` : ''}`, hex: c.hex }]);
+                                    toast({ title: `Cor ${c.nome} adicionada` });
+                                  } else {
+                                    toast({ title: "Cor já adicionada", variant: "default" });
+                                  }
+                                }}
+                                className="group flex items-center gap-2 px-2.5 py-1.5 rounded-md border bg-card hover:bg-accent hover:border-primary/50 transition-all text-xs font-medium shadow-sm"
+                              >
+                                <div className="w-3 h-3 rounded-full border shadow-sm group-hover:scale-110 transition-transform" style={{ backgroundColor: c.hex }} />
+                                {c.nome}
+                                {c.codigo && <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded ml-1">{c.codigo}</span>}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
             </div>
           )}
 

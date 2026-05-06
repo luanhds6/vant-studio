@@ -21,7 +21,7 @@ const ProductForm = lazy(() => import("./pages/ProductForm"));
 const CatalogPreview = lazy(() => import("./pages/CatalogPreview"));
 const SettingsPage = lazy(() => import("./pages/Settings"));
 const ProfilePage = lazy(() => import("./pages/Profile"));
-const ColorsPage = lazy(() => import("./pages/ColorsPage"));
+const FabricColorsPage = lazy(() => import("./pages/FabricColorsPage"));
 const ProductCadastroPage = lazy(() => import("./pages/ProductCadastroPage"));
 
 function RouteFallback() {
@@ -225,7 +225,7 @@ const App = () => {
                   <Route path="/produto/:id" element={<LegacyProductRedirect />} />
 
                   <Route path="/config" element={<SettingsRouteGate />} />
-                  <Route path="/cores" element={<ColorsPage />} />
+                  <Route path="/cores" element={<FabricColorsPage />} />
                   <Route path="/perfil" element={<ProfilePage />} />
                 </Route>
 

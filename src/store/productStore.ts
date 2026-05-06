@@ -12,6 +12,8 @@ interface ProductStore {
   hospitals: Hospital[];
   products: Product[];
   colors: BaseColor[];
+  industries: FabricIndustry[];
+  fabricTypes: FabricType[];
   settings: CompanySettings;
   isLoading: boolean;
   
@@ -26,7 +28,14 @@ interface ProductStore {
   updateProduct: (product: Product) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
 
+  addIndustry: (industry: Omit<FabricIndustry, 'createdAt'>) => Promise<void>;
+  deleteIndustry: (id: string) => Promise<void>;
+
+  addFabricType: (fabricType: Omit<FabricType, 'createdAt'>) => Promise<void>;
+  deleteFabricType: (id: string) => Promise<void>;
+
   addColor: (color: Omit<BaseColor, 'createdAt'>) => Promise<void>;
+  updateColor: (color: Omit<BaseColor, 'createdAt'>) => Promise<void>;
   deleteColor: (id: string) => Promise<void>;
   
   updateSettings: (settings: Partial<CompanySettings>) => Promise<void>;
@@ -44,7 +53,7 @@ const REALTIME_DEBOUNCE_MS = 400;
 let realtimeSubscribed = false;
 let realtimeChannel: ReturnType<typeof supabase.channel> | null = null;
 let realtimeDebounce: ReturnType<typeof setTimeout> | null = null;
-let fetchInflight: Promise<void> | null = null;
+let currentFetchId = 0;
 
 function scheduleRealtimeRefetch(get: () => ProductStore) {
   if (realtimeDebounce) {
@@ -60,6 +69,8 @@ export const useProductStore = create<ProductStore>((set, get) => ({
   hospitals: [],
   products: [],
   colors: [],
+  industries: [],
+  fabricTypes: [],
   settings: defaultSettings,
   isLoading: true,
 
@@ -95,6 +106,16 @@ export const useProductStore = create<ProductStore>((set, get) => ({
           { event: "*", schema: "public", table: "colors" },
           () => scheduleRealtimeRefetch(get),
         )
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "fabric_industries" },
+          () => scheduleRealtimeRefetch(get),
+        )
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "fabric_types" },
+          () => scheduleRealtimeRefetch(get),
+        )
         .subscribe((status) => {
           if (status === "CHANNEL_ERROR") {
             console.error("Erro na subscrição Realtime (app-data-listeners)");
@@ -107,21 +128,29 @@ export const useProductStore = create<ProductStore>((set, get) => ({
   },
 
   fetchData: async () => {
-    if (fetchInflight) {
-      return fetchInflight;
-    }
-    fetchInflight = (async () => {
+    const fetchId = ++currentFetchId;
+
     try {
-      const [hospitalsRes, productsRes, settingsRes, colorsRes] = await Promise.all([
+      const [hospitalsRes, productsRes, settingsRes, colorsRes, indRes, fabRes] = await Promise.all([
         supabase.from('hospitals').select('*').order('created_at', { ascending: true }),
         supabase.from('products').select('*').order('created_at', { ascending: true }),
         supabase.from('company_settings').select('*').limit(1),
-        supabase.from('colors').select('*').order('nome', { ascending: true })
+        supabase.from('colors').select('*').order('nome', { ascending: true }),
+        supabase.from('fabric_industries').select('*').order('nome', { ascending: true }),
+        supabase.from('fabric_types').select('*').order('nome', { ascending: true })
       ]);
+
+      if (fetchId !== currentFetchId) {
+        console.log("Ignorando fetch obsoleto", fetchId);
+        return;
+      }
+
 
       if (hospitalsRes.error) console.error("Error fetching hospitals:", hospitalsRes.error);
       if (productsRes.error) console.error("Error fetching products:", productsRes.error);
       if (colorsRes.error) console.error("Error fetching colors:", colorsRes.error);
+      if (indRes.error) console.error("Error fetching industries:", indRes.error);
+      if (fabRes.error) console.error("Error fetching fabric types:", fabRes.error);
 
       const hospitals: Hospital[] = (hospitalsRes.data || []).map(h => ({
         id: h.id,
@@ -161,20 +190,31 @@ export const useProductStore = create<ProductStore>((set, get) => ({
 
       const colors: BaseColor[] = (colorsRes.data || []).map(c => ({
         id: c.id,
+        fabricTypeId: c.fabric_type_id,
+        codigo: c.codigo,
         nome: c.nome,
         hex: c.hex,
         createdAt: c.created_at
       }));
 
-      set({ hospitals, products, settings, colors, isLoading: false });
+      const industries: FabricIndustry[] = (indRes.data || []).map(i => ({
+        id: i.id,
+        nome: i.nome,
+        createdAt: i.created_at
+      }));
+
+      const fabricTypes: FabricType[] = (fabRes.data || []).map(f => ({
+        id: f.id,
+        industryId: f.industry_id,
+        nome: f.nome,
+        createdAt: f.created_at
+      }));
+
+      set({ hospitals, products, settings, colors, industries, fabricTypes, isLoading: false });
     } catch (err) {
       console.error("Critical error in fetchData:", err);
       set({ isLoading: false });
-    } finally {
-      fetchInflight = null;
     }
-    })();
-    return fetchInflight;
   },
 
   addHospital: async (h) => {
@@ -287,14 +327,73 @@ export const useProductStore = create<ProductStore>((set, get) => ({
     await get().fetchData();
   },
 
+  addIndustry: async (industry) => {
+    const { error } = await supabase.from('fabric_industries').insert({
+      id: industry.id,
+      nome: industry.nome
+    });
+    if (error) {
+      console.error('Erro ao adicionar industria:', error);
+      throw error;
+    }
+    await get().fetchData();
+  },
+
+  deleteIndustry: async (id) => {
+    const { error } = await supabase.from('fabric_industries').delete().eq('id', id);
+    if (error) {
+      console.error('Erro ao deletar industria:', error);
+      throw error;
+    }
+    await get().fetchData();
+  },
+
+  addFabricType: async (fabricType) => {
+    const { error } = await supabase.from('fabric_types').insert({
+      id: fabricType.id,
+      industry_id: fabricType.industryId,
+      nome: fabricType.nome
+    });
+    if (error) {
+      console.error('Erro ao adicionar tecido:', error);
+      throw error;
+    }
+    await get().fetchData();
+  },
+
+  deleteFabricType: async (id) => {
+    const { error } = await supabase.from('fabric_types').delete().eq('id', id);
+    if (error) {
+      console.error('Erro ao deletar tecido:', error);
+      throw error;
+    }
+    await get().fetchData();
+  },
+
   addColor: async (color) => {
     const { error } = await supabase.from('colors').insert({
       id: color.id,
+      fabric_type_id: color.fabricTypeId,
+      codigo: color.codigo,
       nome: color.nome,
       hex: color.hex
     });
     if (error) {
       console.error('Erro ao adicionar cor:', error);
+      throw error;
+    }
+    await get().fetchData();
+  },
+
+  updateColor: async (color) => {
+    const { error } = await supabase.from('colors').update({
+      fabric_type_id: color.fabricTypeId,
+      codigo: color.codigo,
+      nome: color.nome,
+      hex: color.hex
+    }).eq('id', color.id);
+    if (error) {
+      console.error('Erro ao atualizar cor:', error);
       throw error;
     }
     await get().fetchData();
@@ -374,6 +473,8 @@ export const useProductStore = create<ProductStore>((set, get) => ({
       hospitals: [],
       products: [],
       colors: [],
+      industries: [],
+      fabricTypes: [],
       settings: defaultSettings,
       isLoading: false,
     });

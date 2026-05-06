@@ -45,7 +45,7 @@ const menuItems: MenuItem[] = [
     anyOf: ["novo_produto", "produtos"],
   },
   {
-    title: "Cores",
+    title: "Tecido/cores",
     url: "/cores",
     icon: Palette,
     anyOf: ["configuracoes", "novo_produto"],

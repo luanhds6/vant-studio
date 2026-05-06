@@ -11,8 +11,23 @@ export interface ProductColor {
   hex: string;
 }
 
+export interface FabricIndustry {
+  id: string;
+  nome: string;
+  createdAt: string;
+}
+
+export interface FabricType {
+  id: string;
+  industryId: string;
+  nome: string;
+  createdAt: string;
+}
+
 export interface BaseColor {
   id: string;
+  fabricTypeId?: string;
+  codigo?: string;
   nome: string;
   hex: string;
   createdAt: string;
