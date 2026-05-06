@@ -205,19 +205,21 @@ export function LoginPromoPanel() {
   return (
     <div className="relative flex min-h-[220px] flex-1 flex-col justify-center overflow-y-auto overflow-x-hidden [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden bg-gradient-to-br from-slate-950 via-[#0c1222] to-[#0f172a] px-5 py-5 md:min-h-0 md:px-6 md:py-4">
       <div
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(hsl(220_30%_98%/0.06)_1px,transparent_1px)] [background-size:20px_20px] [mask-image:radial-gradient(ellipse_80%_70%_at_30%_30%,black,transparent)]"
+        className="pointer-events-none absolute inset-0 hidden bg-[radial-gradient(hsl(220_30%_98%/0.06)_1px,transparent_1px)] [background-size:20px_20px] [mask-image:radial-gradient(ellipse_80%_70%_at_30%_30%,black,transparent)] md:block"
         aria-hidden
       />
       <div
-        className="pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full bg-amber-500/10 blur-2xl"
+        className="pointer-events-none absolute -right-12 -top-12 hidden h-40 w-40 rounded-full bg-amber-500/10 blur-2xl md:block"
         aria-hidden
       />
       <div
-        className="pointer-events-none absolute -bottom-10 -left-10 h-32 w-32 rounded-full bg-violet-600/5 blur-2xl"
+        className="pointer-events-none absolute -bottom-10 -left-10 hidden h-32 w-32 rounded-full bg-violet-600/5 blur-2xl md:block"
         aria-hidden
       />
 
-      <LoginWaves />
+      <div className="hidden md:contents">
+        <LoginWaves />
+      </div>
 
       <div className="relative z-10 mx-auto w-full max-w-sm space-y-4">
         <header className="space-y-2.5">
@@ -248,7 +250,7 @@ export function LoginPromoPanel() {
           {highlights.map(({ icon: Icon, title, text, ring: ringClass }) => (
             <li
               key={title}
-              className="flex gap-2.5 rounded-lg border border-white/5 bg-white/[0.03] px-2.5 py-2 backdrop-blur-[2px] transition-colors hover:border-amber-500/15 hover:bg-white/[0.05]"
+              className="flex gap-2.5 rounded-lg border border-white/5 bg-white/[0.03] px-2.5 py-2 transition-colors hover:border-amber-500/15 hover:bg-white/[0.05] md:backdrop-blur-[2px]"
             >
               <div
                 className={cn(

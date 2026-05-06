@@ -149,7 +149,7 @@ export function SystemWavesBackground() {
   }, []);
 
   return (
-    <div className="pointer-events-none fixed bottom-0 right-0 z-0 h-64 w-[min(100%,45rem)] overflow-hidden opacity-70 dark:opacity-40 [mask-image:linear-gradient(to_right,transparent_0%,black_15%,black_100%)]">
+    <div className="pointer-events-none fixed bottom-0 right-0 z-0 hidden h-64 w-[min(100%,45rem)] overflow-hidden opacity-70 dark:opacity-40 [mask-image:linear-gradient(to_right,transparent_0%,black_15%,black_100%)] md:block">
       {mounted && resolvedTheme === "dark" ? <DarkWaves /> : null}
       {mounted && resolvedTheme !== "dark" ? <LightWaves /> : null}
     </div>

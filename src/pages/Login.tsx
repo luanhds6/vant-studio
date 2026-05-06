@@ -44,7 +44,7 @@ export default function Login() {
       <div className="absolute right-3 top-3 z-20 md:right-5 md:top-5">
         <ThemeToggle />
       </div>
-      <div className="relative z-10 flex h-auto w-full max-w-[900px] min-h-0 flex-col overflow-hidden rounded-[20px] border border-border bg-card shadow-xl md:h-[550px] md:min-h-0 md:flex-row dark:border-white/10 dark:bg-white/[0.05] dark:shadow-[0_25px_50px_rgba(0,0,0,0.3)] dark:backdrop-blur-[15px]">
+      <div className="relative z-10 flex h-auto w-full max-w-[900px] min-h-0 flex-col overflow-hidden rounded-[20px] border border-border bg-card shadow-xl md:h-[550px] md:min-h-0 md:flex-row dark:border-white/10 dark:bg-white/[0.06] dark:shadow-[0_25px_50px_rgba(0,0,0,0.3)] md:dark:bg-white/[0.05] md:dark:backdrop-blur-[15px]">
         <div className="dark flex min-h-[220px] flex-1 flex-col md:min-h-0">
           <LoginPromoPanel />
         </div>

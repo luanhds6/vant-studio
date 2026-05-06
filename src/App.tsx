@@ -123,7 +123,7 @@ const App = () => {
     return (
       <div className="relative flex h-screen w-screen items-center justify-center overflow-hidden bg-gradient-to-br from-sky-50 via-violet-50/80 to-orange-50/90 dark:from-slate-950 dark:via-violet-950/40 dark:to-slate-950">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,hsl(210_90%_88%/0.35),transparent_50%)] dark:bg-[radial-gradient(circle_at_30%_20%,hsl(260_40%_30%/0.25),transparent_50%)]" />
-        <div className="relative flex w-full max-w-sm flex-col gap-4 rounded-2xl border border-white/60 bg-white/70 p-8 shadow-xl shadow-slate-200/50 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/60 dark:shadow-black/40">
+        <div className="relative flex w-full max-w-sm flex-col gap-4 rounded-2xl border border-white/60 bg-white/92 p-8 shadow-xl shadow-slate-200/50 dark:border-white/10 dark:bg-slate-900/85 dark:shadow-black/40 md:bg-white/70 md:backdrop-blur-xl md:dark:bg-slate-900/60">
           <div className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" />
           <div className="space-y-2">
             <div className="h-3 w-3/4 animate-pulse rounded-lg bg-muted/80" />

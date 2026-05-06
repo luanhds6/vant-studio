@@ -1,5 +1,3 @@
-import { cn } from "@/lib/utils";
-
 export function LoginBackground() {
   const RIBBON_A = "M-40 200 C 20 165 50 200 100 100 C 160 0 220 200 300 100 C 380 10 450 100 500 20 C 510 8 520 4 520 0";
   const RIBBON_C = "M-25 200 C 20 200 100 200 200 200 C 280 200 320 40 400 20 C 460 8 500 2 520 0";
@@ -11,16 +9,21 @@ export function LoginBackground() {
 
   return (
     <div className="absolute inset-0 z-0 overflow-hidden bg-slate-100 dark:bg-[#060d18]">
-      {/* Dynamic Ambient Gradients */}
-      <div className="absolute -left-[20%] top-[-10%] h-[70%] w-[60%] rounded-full bg-blue-400/40 blur-[140px] dark:bg-blue-600/30 animate-pulse" style={{ animationDuration: '10s' }} />
-      <div className="absolute right-[-10%] bottom-[-10%] h-[60%] w-[50%] rounded-full bg-amber-400/30 blur-[130px] dark:bg-amber-600/20 animate-pulse" style={{ animationDuration: '14s', animationDelay: '3s' }} />
-      <div className="absolute left-[30%] top-[40%] h-[40%] w-[40%] rounded-full bg-sky-300/30 blur-[120px] dark:bg-sky-500/20 animate-pulse" style={{ animationDuration: '12s', animationDelay: '1s' }} />
-      
-      {/* Enhanced Grid pattern */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808025_1px,transparent_1px),linear-gradient(to_bottom,#80808025_1px,transparent_1px)] bg-[size:32px_32px] [mask-image:radial-gradient(ellipse_70%_70%_at_50%_50%,#000_80%,transparent_100%)]" />
+      {/* Mobile: só gradiente CSS (sem blur/SVG/SMIL — alivia GPU no telefone) */}
+      <div
+        className="absolute inset-0 bg-gradient-to-br from-slate-100 via-sky-50 to-amber-50 dark:from-[#060d18] dark:via-[#0a1628] dark:to-[#060d18] md:hidden"
+        aria-hidden
+      />
 
-      {/* --- WAVES BACKGROUND (from LoginPromoPanel, covering the whole screen) --- */}
-      <div className="absolute inset-0 opacity-40 dark:opacity-30 will-change-transform animate-vant-login-wave-aurora">
+      {/* Desktop: blobs, grade, ondas e SVG animado */}
+      <div className="absolute -left-[20%] top-[-10%] hidden h-[70%] w-[60%] rounded-full bg-blue-400/40 blur-[140px] dark:bg-blue-600/30 animate-pulse md:block" style={{ animationDuration: "10s" }} />
+      <div className="absolute right-[-10%] bottom-[-10%] hidden h-[60%] w-[50%] rounded-full bg-amber-400/30 blur-[130px] dark:bg-amber-600/20 animate-pulse md:block" style={{ animationDuration: "14s", animationDelay: "3s" }} />
+      <div className="absolute left-[30%] top-[40%] hidden h-[40%] w-[40%] rounded-full bg-sky-300/30 blur-[120px] dark:bg-sky-500/20 animate-pulse md:block" style={{ animationDuration: "12s", animationDelay: "1s" }} />
+
+      <div className="absolute inset-0 hidden bg-[linear-gradient(to_right,#80808025_1px,transparent_1px),linear-gradient(to_bottom,#80808025_1px,transparent_1px)] bg-[size:32px_32px] [mask-image:radial-gradient(ellipse_70%_70%_at_50%_50%,#000_80%,transparent_100%)] md:block" />
+
+      {/* --- WAVES BACKGROUND --- */}
+      <div className="absolute inset-0 hidden opacity-40 will-change-transform animate-vant-login-wave-aurora dark:opacity-30 md:block">
         <div className="absolute bottom-0 left-0 h-full w-full animate-vant-login-wave-drift-1">
           <svg className="h-full w-full object-cover" viewBox="0 0 520 200" preserveAspectRatio="none">
             <defs>
@@ -82,8 +85,7 @@ export function LoginBackground() {
       </div>
       {/* --- END WAVES BACKGROUND --- */}
 
-      {/* Floating Abstract Catalog Pages */}
-      <svg className="absolute inset-0 h-full w-full opacity-80 dark:opacity-60" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+      <svg className="absolute inset-0 hidden h-full w-full opacity-80 dark:opacity-60 md:block" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <linearGradient id="pageGrad" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="currentColor" stopOpacity="0.15" className="text-blue-500" />

@@ -146,6 +146,44 @@
   }
 }
 
+/* Telefone/tablet estreito: menos repaint e sem backdrop-filter (blur nativo é caro no mobile WebKit) */
+@media (max-width: 767px) {
+  .vant-app-bg::before {
+    animation: none;
+  }
+
+  .vant-app-bg::after {
+    opacity: 0;
+    background-image: none;
+  }
+
+  .vant-sidebar-inner {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: hsl(0 0% 100% / 0.96) !important;
+    box-shadow:
+      0 2px 16px -6px hsl(220 40% 50% / 0.1),
+      0 0 0 1px hsl(0 0% 100% / 0.55) inset !important;
+  }
+
+  .dark .vant-sidebar-inner {
+    background: hsl(232 26% 12% / 0.98) !important;
+    box-shadow:
+      0 2px 20px -8px hsl(0 0% 0% / 0.35),
+      0 0 0 1px hsl(255 25% 100% / 0.05) inset !important;
+  }
+
+  .vant-topbar-glass {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: hsl(var(--card) / 0.96);
+  }
+
+  .dark .vant-topbar-glass {
+    background: hsl(var(--card) / 0.94);
+  }
+}
+
 @layer components {
   /* Fundo fluido + ondas (camadas fixas) */
   .vant-app-bg {
