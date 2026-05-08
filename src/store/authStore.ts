@@ -84,6 +84,15 @@ interface AuthState {
 
 let authStateListenerAttached = false;
 
+/** Evita UI presa em «Salvando…» se a Edge Function não responder (rede, função não implantada, etc.). */
+function withTimeout<T>(promise: Promise<T>, ms: number, timeoutMessage: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(timeoutMessage)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   isAuthenticated: false,
   currentUser: null,
@@ -281,18 +290,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     await getSessionAccessTokenOrThrow();
 
-    const { data: fnData, error: fnError } = await supabase.functions.invoke<{
-      ok?: boolean;
-      userId?: string;
-      error?: string;
-    }>("create-user", {
-      body: {
-        email,
-        password: userData.password,
-        name,
-        role: roleStored,
-      },
-    });
+    const { data: fnData, error: fnError } = await withTimeout(
+      supabase.functions.invoke<{
+        ok?: boolean;
+        userId?: string;
+        error?: string;
+      }>("create-user", {
+        body: {
+          email,
+          password: userData.password,
+          name,
+          role: roleStored,
+        },
+      }),
+      45_000,
+      "Tempo esgotado ao criar utilizador no servidor. Confirme no Supabase que a Edge Function «create-user» está implantada e que a rede permite HTTPS.",
+    );
 
     if (fnError) {
       let msg = fnError.message;
@@ -357,12 +370,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (pwdRaw.length > 0) body.password = pwdRaw;
       if (emailChanged && emailTrim) body.email = emailTrim;
 
-      const { data, error } = await supabase.functions.invoke<{
-        ok?: boolean;
-        error?: string;
-      }>("update-user-auth", {
-        body,
-      });
+      const { data, error } = await withTimeout(
+        supabase.functions.invoke<{
+          ok?: boolean;
+          error?: string;
+        }>("update-user-auth", {
+          body,
+        }),
+        45_000,
+        "Tempo esgotado ao atualizar senha/e-mail no servidor. Confirme no Supabase que a Edge Function «update-user-auth» está implantada e ativa (projeto correto e URL no .env).",
+      );
 
       if (error) {
         let msg = error.message;
@@ -558,12 +575,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     await getSessionAccessTokenOrThrow();
 
-    const { data, error } = await supabase.functions.invoke<{
-      ok?: boolean;
-      error?: string;
-    }>("delete-user", {
-      body: { userId: id },
-    });
+    const { data, error } = await withTimeout(
+      supabase.functions.invoke<{
+        ok?: boolean;
+        error?: string;
+      }>("delete-user", {
+        body: { userId: id },
+      }),
+      45_000,
+      "Tempo esgotado ao excluir utilizador no servidor. Confirme que a Edge Function «delete-user» está implantada.",
+    );
 
     if (error) {
       let msg = error.message;

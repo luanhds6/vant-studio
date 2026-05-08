@@ -34,6 +34,7 @@ export default function UsersManagement({ embedded = false }: UsersManagementPro
     passwordType: "temporary" as "temporary" | "permanent",
     permissions: [...DEFAULT_USER_PERMISSIONS] as PermissionKey[],
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!canAccess("usuarios")) {
     return (
@@ -78,8 +79,6 @@ export default function UsersManagement({ embedded = false }: UsersManagementPro
     setDefineNewPassword(false);
     setIsDialogOpen(true);
   };
-
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSaveUser = async (e: React.FormEvent) => {
     e.preventDefault();

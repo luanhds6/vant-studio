@@ -41,6 +41,12 @@ interface ProductStore {
   updateColor: (color: Omit<BaseColor, 'createdAt'>) => Promise<void>;
   deleteColor: (id: string) => Promise<void>;
   deleteColors: (ids: string[]) => Promise<void>;
+  /** Upserts + inserts + deletes numa sequência e um único fetch (edição de vínculos de cor). */
+  applyColorEdits: (opts: {
+    upserts: Omit<BaseColor, "createdAt">[];
+    inserts: Omit<BaseColor, "createdAt">[];
+    deleteIds: string[];
+  }) => Promise<void>;
   
   updateSettings: (settings: Partial<CompanySettings>) => Promise<void>;
   
@@ -451,6 +457,48 @@ export const useProductStore = create<ProductStore>((set, get) => ({
     if (error) {
       console.error('Erro ao deletar cores em lote:', error);
       throw error;
+    }
+    await get().fetchData();
+  },
+
+  applyColorEdits: async ({ upserts, inserts, deleteIds }) => {
+    if (deleteIds.length) {
+      const { error } = await supabase.from('colors').delete().in('id', deleteIds);
+      if (error) {
+        console.error('Erro ao remover vínculos de cor:', error);
+        throw error;
+      }
+    }
+    if (upserts.length) {
+      const { error } = await supabase.from('colors').upsert(
+        upserts.map((c) => ({
+          id: c.id,
+          fabric_type_id: c.fabricTypeId,
+          codigo: c.codigo,
+          nome: c.nome,
+          hex: c.hex,
+        })),
+        { onConflict: 'id' },
+      );
+      if (error) {
+        console.error('Erro ao atualizar cores:', error);
+        throw error;
+      }
+    }
+    if (inserts.length) {
+      const { error } = await supabase.from('colors').insert(
+        inserts.map((c) => ({
+          id: c.id,
+          fabric_type_id: c.fabricTypeId,
+          codigo: c.codigo,
+          nome: c.nome,
+          hex: c.hex,
+        })),
+      );
+      if (error) {
+        console.error('Erro ao inserir novos vínculos de cor:', error);
+        throw error;
+      }
     }
     await get().fetchData();
   },

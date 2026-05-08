@@ -18,6 +18,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import type { BaseColor } from "@/types/Product";
 
 const generateId = () => crypto.randomUUID();
 const FABRIC_MARKER_COLORS = ["#2563eb", "#16a34a", "#d97706", "#9333ea", "#dc2626", "#0891b2", "#7c3aed"];
@@ -53,30 +54,6 @@ const colorFamilyKey = (color: { codigo?: string; nome: string; hex: string }) =
 /** Quantidade de cores mostradas na legenda antes de pedir «Expandir». */
 const LEGEND_CARD_PREVIEW_COUNT = 5;
 
-const LEGEND_PRESET_FROM_PRINTS: Array<{ nome: string; color: string; shape: FabricMarkerShape }> = [
-  { nome: "WORKDENIN PROF 5 OZ", color: "#1f2f6a", shape: "star" },
-  { nome: "CEDROWORK BLUE", color: "#ffe500", shape: "circle" },
-  { nome: "CEDROMIX 5 oz II", color: "#00a0ef", shape: "circle" },
-  { nome: "CEDROMIX 8 oz II", color: "#1f2f6a", shape: "star" },
-  { nome: "POLYFLEX PROF", color: "#4bae35", shape: "circle" },
-  { nome: "POLYCEDROBRIM SUPER II", color: "#00a0ef", shape: "circle-outline" },
-  { nome: "POLYCEDROLEVE SUPER II", color: "#e31820", shape: "square-outline" },
-  { nome: "POLYCOTON MAIS", color: "#ffd700", shape: "star" },
-  { nome: "POLYCOTTON LEVE II", color: "#e31820", shape: "triangle" },
-  { nome: "CEDROPAC II / CEDROPAC LEVE II", color: "#f4b4c7", shape: "hexagon" },
-  { nome: "CEDROLEVE DRILL II / CEDROBRIM DRILL II", color: "#7f3ba8", shape: "circle" },
-  { nome: "CEDROLEVE SUPER II / CEDROBRIM SUPER II", color: "#e31820", shape: "square" },
-  { nome: "VERSÁTIL WORK II", color: "#f6c27d", shape: "hexagon" },
-  { nome: "VERSÁTIL WORK LEVE", color: "#f6c27d", shape: "hexagon" },
-  { nome: "CEDROVIP MIX", color: "#f39c12", shape: "triangle" },
-  { nome: "CEDROFIL", color: "#f3c9cf", shape: "square" },
-  { nome: "CEDROVIP SUPER", color: "#58b947", shape: "hexagon" },
-  { nome: "CEDROFIL FLEX", color: "#8e44ad", shape: "triangle-down" },
-  { nome: "KIRAZ DARK", color: "#1f2f6a", shape: "circle" },
-  { nome: "KIRAZ BLUE", color: "#27439c", shape: "circle" },
-  { nome: "NEW WORKFLEX", color: "#f3c9cf", shape: "triangle" },
-];
-
 const FabricColorsPage = () => {
   const navigate = useNavigate();
   const {
@@ -88,8 +65,8 @@ const FabricColorsPage = () => {
     addFabricType,
     updateFabricType,
     deleteFabricType,
-    addColor,
     addColors,
+    applyColorEdits,
     updateColor,
     deleteColor,
     deleteColors,
@@ -115,6 +92,8 @@ const FabricColorsPage = () => {
   const [colorDialogError, setColorDialogError] = useState<string | null>(null);
   const [isSavingNewColor, setIsSavingNewColor] = useState(false);
   const [editColorDialogOpen, setEditColorDialogOpen] = useState(false);
+  const [isSavingEditColor, setIsSavingEditColor] = useState(false);
+  const [editColorDialogError, setEditColorDialogError] = useState<string | null>(null);
   const [editFabricDialogOpen, setEditFabricDialogOpen] = useState(false);
 
   const [industryToDelete, setIndustryToDelete] = useState<string | null>(null);
@@ -133,7 +112,6 @@ const FabricColorsPage = () => {
   const [editFabricMarkerColor, setEditFabricMarkerColor] = useState("#2563eb");
   const [editFabricMarkerShape, setEditFabricMarkerShape] = useState<FabricMarkerShape>(DEFAULT_FABRIC_MARKER_SHAPE);
   const [isSavingFabric, setIsSavingFabric] = useState(false);
-  const [autoAppliedLegendIndustryIds, setAutoAppliedLegendIndustryIds] = useState<string[]>([]);
   const [isDedupingLegends, setIsDedupingLegends] = useState(false);
   const [fabricMarkerOverrides, setFabricMarkerOverrides] = useState<Record<string, string>>({});
   const [fabricMarkerShapeOverrides, setFabricMarkerShapeOverrides] = useState<Record<string, FabricMarkerShape>>({});
@@ -280,6 +258,12 @@ const FabricColorsPage = () => {
       return (a.nome || "").localeCompare(b.nome || "", "pt-BR", { sensitivity: "base" });
     });
   }, [selectedIndustryFabrics, fabricSearch, colors]);
+  /** Cores «únicas» na indústria (mesmo código+nome+hex em vários tecidos = uma cor para catálogo/seleção). */
+  const distinctIndustryColorCount = useMemo(
+    () => new Set(selectedIndustryColors.map((row) => colorFamilyKey(row))).size,
+    [selectedIndustryColors],
+  );
+
   const groupedFilteredColors = useMemo(() => {
     const totalByFabricId = selectedIndustryColors.reduce<Record<string, number>>((acc, color) => {
       if (!color.fabricTypeId) return acc;
@@ -350,68 +334,6 @@ const FabricColorsPage = () => {
       </span>
     );
   };
-
-  const applyLegendPresetFromPrints = async (silent = false) => {
-    if (!selectedIndustryId) {
-      if (!silent) {
-        toast({ title: "Selecione uma indústria para aplicar as legends", variant: "destructive" });
-      }
-      return;
-    }
-    try {
-      const existingByName = new Map(
-        selectedIndustryFabrics.map((fabric) => [normalizeLegendName(fabric.nome), fabric.id]),
-      );
-      const colorUpdates: Record<string, string> = {};
-      const shapeUpdates: Record<string, FabricMarkerShape> = {};
-      let createdCount = 0;
-
-      for (const preset of LEGEND_PRESET_FROM_PRINTS) {
-        const normalized = normalizeLegendName(preset.nome);
-        let fabricId = existingByName.get(normalized);
-        if (!fabricId) {
-          fabricId = generateId();
-          await addFabricType({
-            id: fabricId,
-            industryId: selectedIndustryId,
-            nome: preset.nome,
-          });
-          existingByName.set(normalized, fabricId);
-          createdCount += 1;
-        }
-        colorUpdates[fabricId] = preset.color;
-        shapeUpdates[fabricId] = preset.shape;
-      }
-
-      setFabricMarkerOverrides((prev) => ({ ...prev, ...colorUpdates }));
-      setFabricMarkerShapeOverrides((prev) => ({ ...prev, ...shapeUpdates }));
-      if (!silent) {
-        toast({
-          title: "Legends aplicadas com sucesso",
-          description: `${LEGEND_PRESET_FROM_PRINTS.length} legends processadas (${createdCount} novas).`,
-        });
-      }
-    } catch {
-      if (!silent) {
-        toast({
-          title: "Erro ao aplicar legends dos prints",
-          description: "Tente novamente.",
-          variant: "destructive",
-        });
-      }
-    }
-  };
-
-  useEffect(() => {
-    if (!selectedIndustryId || !selectedIndustry) return;
-    if (autoAppliedLegendIndustryIds.includes(selectedIndustryId)) return;
-
-    void applyLegendPresetFromPrints(true).then(() => {
-      setAutoAppliedLegendIndustryIds((prev) =>
-        prev.includes(selectedIndustryId) ? prev : [...prev, selectedIndustryId],
-      );
-    });
-  }, [selectedIndustryId, selectedIndustry, autoAppliedLegendIndustryIds]);
 
   useEffect(() => {
     if (!selectedIndustryId || !selectedIndustry || isDedupingLegends) return;
@@ -685,16 +607,48 @@ const FabricColorsPage = () => {
     }
   };
 
-  const confirmDeleteColor = async () => {
-    if (!colorToDeleteKey) return;
+  /**
+   * Exclui todas as linhas da «família» no banco. Recebe `familyKey` pelo botão (data-attribute):
+   * ao confirmar, o Radix pode fechar o diálogo e disparar `onOpenChange(false)` antes do estado
+   * `colorToDeleteKey` ser lido — ficava `null` e a exclusão não corria (falha silenciosa).
+   */
+  const confirmDeleteColor = async (familyKey: string) => {
+    const key = familyKey.trim();
+    if (!key) return;
+    if (!selectedIndustryId) {
+      toast({ title: "Selecione uma indústria", variant: "destructive" });
+      setColorToDeleteKey(null);
+      return;
+    }
     try {
-      const family = colorFamilies.find((item) => item.key === colorToDeleteKey);
-      if (!family) return;
-      await deleteColors(family.rows.map((row) => row.id));
-      setSelectedColorKeys((prev) => prev.filter((key) => key !== colorToDeleteKey));
+      const { fabricTypes: fts, colors: allColors } = useProductStore.getState();
+      const fabricIdsInIndustry = new Set(
+        fts.filter((f) => f.industryId === selectedIndustryId).map((f) => f.id),
+      );
+      const rows = allColors.filter(
+        (c) =>
+          c.fabricTypeId &&
+          fabricIdsInIndustry.has(c.fabricTypeId) &&
+          colorFamilyKey(c) === key,
+      );
+      if (rows.length === 0) {
+        toast({
+          title: "Não foi possível excluir",
+          description:
+            "Não encontramos registros desta cor na indústria atual. Os filtros ou os dados podem ter mudado — atualize a página e tente de novo.",
+          variant: "destructive",
+        });
+        return;
+      }
+      await deleteColors(rows.map((row) => row.id));
+      setSelectedColorKeys((prev) => prev.filter((k) => k !== key));
       toast({ title: "Cor excluída" });
-    } catch {
-      toast({ title: "Erro ao excluir cor", variant: "destructive" });
+    } catch (err: unknown) {
+      const description =
+        err && typeof err === "object" && "message" in err && typeof (err as { message: string }).message === "string"
+          ? (err as { message: string }).message
+          : "Erro ao excluir cor.";
+      toast({ title: "Erro ao excluir cor", description, variant: "destructive" });
     } finally {
       setColorToDeleteKey(null);
     }
@@ -735,30 +689,35 @@ const FabricColorsPage = () => {
   const startEditColor = (colorId: string) => {
     const color = colors.find((item) => item.id === colorId);
     if (!color) return;
-    const linked = selectedIndustryColors.filter(
-      (item) =>
-        (item.codigo || "").trim().toLowerCase() === (color.codigo || "").trim().toLowerCase() &&
-        (item.nome || "").trim().toLowerCase() === (color.nome || "").trim().toLowerCase() &&
-        (item.hex || "").trim().toLowerCase() === (color.hex || "").trim().toLowerCase(),
-    );
+    const familyKey = colorFamilyKey(color);
+    const linked = selectedIndustryColors.filter((item) => colorFamilyKey(item) === familyKey);
     const linkedRows = linked.length > 0 ? linked : [color];
     setEditingColorId(color.id);
     setEditingColorLinkedIds(linkedRows.map((item) => item.id));
     setEditColorFabricTypeIds(
       Array.from(new Set(linkedRows.map((item) => item.fabricTypeId).filter((id): id is string => Boolean(id)))),
     );
-    setEditColor({ nome: color.nome || "", hex: color.hex || "#000000", codigo: color.codigo || "" });
+    const hexInitial = normalizeHexForKey(color.hex || "") || color.hex || "#000000";
+    setEditColor({ nome: color.nome || "", hex: hexInitial, codigo: color.codigo || "" });
+    setEditColorDialogError(null);
     setEditColorDialogOpen(true);
   };
 
   const handleUpdateColor = async () => {
+    setEditColorDialogError(null);
     if (!editingColorId || editColorFabricTypeIds.length === 0 || !editColor.nome.trim() || !editColor.codigo.trim()) {
       toast({ title: "Selecione ao menos um tecido, nome e código", variant: "destructive" });
       return;
     }
+
+    const fabricIdsUnique = Array.from(new Set(editColorFabricTypeIds));
+
+    setIsSavingEditColor(true);
     try {
+      const latestColors = useProductStore.getState().colors;
+
       const linkedRows = editingColorLinkedIds
-        .map((id) => colors.find((item) => item.id === id))
+        .map((id) => latestColors.find((item) => item.id === id))
         .filter((item): item is NonNullable<typeof item> => Boolean(item));
 
       const byFabric = new Map<string, { id: string }>();
@@ -766,17 +725,21 @@ const FabricColorsPage = () => {
         if (row.fabricTypeId) byFabric.set(row.fabricTypeId, { id: row.id });
       });
 
+      const hexNormalized = normalizeHexForKey(editColor.hex) || editColor.hex.trim();
       const candidateTrimmed = {
         nome: editColor.nome.trim(),
         codigo: editColor.codigo.trim(),
-        hex: editColor.hex,
+        hex: hexNormalized,
       };
       const candidateKey = colorFamilyKey(candidateTrimmed);
 
-      for (const fabricTypeId of editColorFabricTypeIds) {
+      const upserts: Omit<BaseColor, "createdAt">[] = [];
+      const inserts: Omit<BaseColor, "createdAt">[] = [];
+
+      for (const fabricTypeId of fabricIdsUnique) {
         const existing = byFabric.get(fabricTypeId);
         if (existing) {
-          await updateColor({
+          upserts.push({
             id: existing.id,
             fabricTypeId,
             nome: candidateTrimmed.nome,
@@ -784,7 +747,7 @@ const FabricColorsPage = () => {
             hex: candidateTrimmed.hex,
           });
         } else {
-          const dupOtherRow = colors.some(
+          const dupOtherRow = latestColors.some(
             (c) =>
               c.fabricTypeId === fabricTypeId &&
               colorFamilyKey(c) === candidateKey &&
@@ -792,14 +755,16 @@ const FabricColorsPage = () => {
           );
           if (dupOtherRow) {
             const nomeTecido = fabricNameById[fabricTypeId] || fabricTypeId;
+            const msg = `Em "${nomeTecido}" já existe uma cor igual (código "${candidateTrimmed.codigo}", nome "${candidateTrimmed.nome}" e tom ${candidateTrimmed.hex}).`;
+            setEditColorDialogError(msg);
             toast({
               title: "Não foi possível vincular a este tecido",
-              description: `Em "${nomeTecido}" já existe uma cor igual (código "${candidateTrimmed.codigo}", nome "${candidateTrimmed.nome}" e tom ${candidateTrimmed.hex}). Remova o duplicado ou edite o registro existente.`,
+              description: msg,
               variant: "destructive",
             });
             return;
           }
-          await addColor({
+          inserts.push({
             id: generateId(),
             fabricTypeId,
             nome: candidateTrimmed.nome,
@@ -809,20 +774,27 @@ const FabricColorsPage = () => {
         }
       }
 
-      for (const row of linkedRows) {
-        if (!row.fabricTypeId) continue;
-        if (!editColorFabricTypeIds.includes(row.fabricTypeId)) {
-          await deleteColor(row.id);
-        }
-      }
+      const deleteIds = linkedRows
+        .filter((row) => row.fabricTypeId && !fabricIdsUnique.includes(row.fabricTypeId))
+        .map((row) => row.id);
+
+      await applyColorEdits({ upserts, inserts, deleteIds });
 
       setEditColorDialogOpen(false);
       setEditingColorId(null);
       setEditingColorLinkedIds([]);
       setEditColorFabricTypeIds([]);
+      setEditColorDialogError(null);
       toast({ title: "Cor atualizada" });
-    } catch {
-      toast({ title: "Erro ao atualizar cor", variant: "destructive" });
+    } catch (err: unknown) {
+      const description =
+        err && typeof err === "object" && "message" in err && typeof (err as { message: string }).message === "string"
+          ? (err as { message: string }).message
+          : "Erro ao atualizar cor. Tente novamente.";
+      setEditColorDialogError(description);
+      toast({ title: "Erro ao atualizar cor", description, variant: "destructive" });
+    } finally {
+      setIsSavingEditColor(false);
     }
   };
 
@@ -897,8 +869,8 @@ const FabricColorsPage = () => {
               <article class="card">
                 <img class="swatch-image" src="${swatchImageSrc(family.representative.hex || "#ffffff")}" alt="Amostra ${escapeHtmlPrint(family.representative.nome || "")}" />
                 <div class="meta">
-                  <div class="code">${escapeHtmlPrint(family.representative.codigo || "S/COD")}</div>
-                  <h3>${escapeHtmlPrint(family.representative.nome || "Sem nome")}</h3>
+                  <div class="code-primary">${escapeHtmlPrint(family.representative.codigo || "S/COD")}</div>
+                  <p class="color-name">${escapeHtmlPrint(family.representative.nome || "Sem nome")}</p>
                   <p class="hex">${escapeHtmlPrint((family.representative.hex || "-").toUpperCase())}</p>
                   ${linkedFabricsBlockHtml(family)}
                 </div>
@@ -930,12 +902,36 @@ const FabricColorsPage = () => {
             .subtitle { margin: 0 0 10px 0; color: #4b5563; font-size: 13px; }
             .group { margin-bottom: 8px; page-break-inside: auto; break-inside: auto; }
             .group-title { margin: 0 0 6px 0; display: flex; align-items: center; gap: 6px; font-size: 13px; text-transform: uppercase; color: #334155; }
-            .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-            .card { border: 1px solid #e5e7eb; border-radius: 10px; overflow: hidden; page-break-inside: avoid; break-inside: avoid; }
-            .swatch-image { display: block; width: 100%; height: 54px; object-fit: cover; border-bottom: 1px solid #e5e7eb; }
-            .meta { padding: 8px; }
-            .code { display: inline-block; font-family: monospace; font-size: 12px; font-weight: 700; border: 1px solid #d1d5db; border-radius: 999px; padding: 2px 10px; margin-bottom: 6px; }
-            .meta h3 { margin: 0 0 3px 0; font-size: 14px; }
+            .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+            .card {
+              border: 2px solid #64748b;
+              border-radius: 10px;
+              overflow: hidden;
+              page-break-inside: avoid;
+              break-inside: avoid;
+              box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+            }
+            .swatch-image { display: block; width: 100%; height: 54px; object-fit: cover; border-bottom: 2px solid #e2e8f0; }
+            .meta { padding: 10px 10px 8px 10px; }
+            .code-primary {
+              display: block;
+              font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+              font-size: 18px;
+              font-weight: 800;
+              letter-spacing: 0.02em;
+              color: #0f172a;
+              line-height: 1.15;
+              margin: 0 0 5px 0;
+              padding: 4px 0 2px 0;
+              border-bottom: 2px solid #e2e8f0;
+            }
+            .color-name {
+              margin: 0 0 5px 0;
+              font-size: 11px;
+              font-weight: 500;
+              color: #475569;
+              line-height: 1.3;
+            }
             .hex { margin: 0 0 6px 0; font-family: monospace; font-size: 11px; color: #374151; text-transform: uppercase; }
             .fabrics { margin: 0; display: flex; flex-direction: column; gap: 2px; padding-top: 4px; border-top: 1px solid #f3f4f6; }
             .fabric-line { margin: 0; font-size: 11px; color: #374151; display: flex; align-items: center; gap: 6px; line-height: 1.25; }
@@ -952,7 +948,7 @@ const FabricColorsPage = () => {
         </head>
         <body>
           <h1>${title}</h1>
-          <p class="subtitle">Total selecionado: ${selectedColorsForPrint.length} cor(es)</p>
+          <p class="subtitle">Total selecionado: ${selectedColorsForPrint.length} cor(es) única(s) no catálogo (agrupa vários tecidos sob o mesmo código/nome/hex)</p>
           ${printableGroups}
         </body>
       </html>
@@ -1026,6 +1022,7 @@ const FabricColorsPage = () => {
           industries.map((industry) => {
             const industryFabrics = fabricTypes.filter((fabric) => fabric.industryId === industry.id);
             const industryColors = colors.filter((color) => industryFabrics.some((fabric) => fabric.id === color.fabricTypeId));
+            const industryDistinctColors = new Set(industryColors.map((c) => colorFamilyKey(c))).size;
             return (
               <Card
                 key={industry.id}
@@ -1040,7 +1037,10 @@ const FabricColorsPage = () => {
                     <div>
                       <h3 className="font-semibold text-lg">{industry.nome}</h3>
                       <p className="text-sm text-muted-foreground">
-                        {industryFabrics.length} tecidos · {industryColors.length} cores
+                        {industryFabrics.length} tecidos · {industryDistinctColors} cores no catálogo ·{" "}
+                        <span title="Linhas na base: cada vínculo desta cor a um tecido conta separado">
+                          {industryColors.length} vínculos
+                        </span>
                       </p>
                     </div>
                   </div>
@@ -1360,8 +1360,12 @@ const FabricColorsPage = () => {
         <div className="space-y-4">
           <div className="flex items-center justify-between gap-3">
             <h3 className="font-semibold text-lg">Cores cadastradas</h3>
-            <p className="text-sm text-muted-foreground">
-              {filteredIndustryColors.length} de {selectedIndustryColors.length} cores
+            <p className="text-sm text-muted-foreground text-right max-w-md leading-snug">
+              <span className="font-medium text-foreground">{colorFamilies.length}</span> cor(es) única(s) na vista ·{" "}
+              <span title="Registros cor×tecido">{filteredIndustryColors.length}</span> de {selectedIndustryColors.length}{" "}
+              vínculos · indústria com{" "}
+              <span className="font-medium text-foreground">{distinctIndustryColorCount}</span> cor(es) única(s) no total.
+              Impressão e seleção usam cor única (não cada vínculo).
             </p>
           </div>
           {selectedLegendFabricIds.length > 0 ? (
@@ -1450,23 +1454,25 @@ const FabricColorsPage = () => {
                         return (
                           <Card
                             key={family.key}
-                            className={`rounded-2xl overflow-hidden border-2 transition-all hover:border-primary/30 ${isSelected ? "border-primary" : ""}`}
+                            className={`rounded-2xl overflow-hidden border-2 transition-all hover:border-primary/40 ${isSelected ? "border-primary ring-2 ring-primary/25" : "border-slate-400/80 dark:border-slate-600"}`}
                           >
-                            <div className="h-24 w-full" style={{ backgroundColor: color.hex }} />
-                            <CardContent className="p-4 relative">
-                              <div className="absolute -top-6 right-4 bg-background px-3 py-1 rounded-full border shadow-sm font-mono text-xs font-bold">
-                                {color.codigo || "S/ COD"}
-                              </div>
-                              <div className="flex justify-between items-start gap-2 mt-2">
-                                <div className="min-w-0">
-                                  <h3 className="font-semibold truncate">{color.nome}</h3>
-                                  <p className="text-xs text-muted-foreground font-mono uppercase">{color.hex}</p>
-                                  <div className="text-xs text-muted-foreground flex items-center gap-2 mt-1 flex-wrap">
+                            <div className="h-24 w-full border-b-2 border-border/80" style={{ backgroundColor: color.hex }} />
+                            <CardContent className="p-4">
+                              <div className="flex justify-between items-start gap-3">
+                                <div className="min-w-0 flex-1 space-y-1.5">
+                                  <div className="font-mono text-2xl font-extrabold tracking-wide text-foreground leading-none border-b border-border pb-2">
+                                    {color.codigo || "S/COD"}
+                                  </div>
+                                  <p className="text-[11px] font-medium leading-snug text-muted-foreground line-clamp-2">
+                                    {color.nome || "Sem nome"}
+                                  </p>
+                                  <p className="text-[11px] font-mono uppercase text-muted-foreground/90">{color.hex}</p>
+                                  <div className="text-xs text-muted-foreground flex items-center gap-x-2 gap-y-1 mt-1 flex-wrap">
                                     {family.linkedFabricIds.map((fabricId) => {
                                       const linkedFabric = selectedIndustryFabrics.find((item) => item.id === fabricId);
                                       if (!linkedFabric) return null;
                                       return (
-                                        <span key={fabricId} className="inline-flex items-center gap-1">
+                                        <span key={fabricId} className="inline-flex items-center gap-1 max-w-full">
                                           {renderFabricMarker(fabricId, "text-xs")}
                                           <span className="truncate">{linkedFabric.nome}</span>
                                         </span>
@@ -1474,29 +1480,31 @@ const FabricColorsPage = () => {
                                     })}
                                   </div>
                                 </div>
-                                <input
-                                  type="checkbox"
-                                  checked={isSelected}
-                                  onChange={() => toggleColorSelection(family.key)}
-                                  className="h-4 w-4 mt-1 accent-primary"
-                                  title="Selecionar para impressão"
-                                />
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={() => startEditColor(color.id)}
-                                >
-                                  <Pencil className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                  onClick={() => setColorToDeleteKey(family.key)}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
+                                <div className="flex shrink-0 items-start gap-0.5 pt-0.5">
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={() => toggleColorSelection(family.key)}
+                                    className="h-4 w-4 mt-1 accent-primary"
+                                    title="Selecionar para impressão"
+                                  />
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => startEditColor(color.id)}
+                                  >
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                    onClick={() => setColorToDeleteKey(family.key)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
                               </div>
                             </CardContent>
                           </Card>
@@ -1555,7 +1563,15 @@ const FabricColorsPage = () => {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDeleteColor} className="bg-destructive hover:bg-destructive/90">
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90"
+              data-delete-key={colorToDeleteKey ?? ""}
+              onClick={(e) => {
+                const raw = (e.currentTarget as HTMLButtonElement).dataset.deleteKey?.trim();
+                if (!raw) return;
+                void confirmDeleteColor(raw);
+              }}
+            >
               Excluir
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -1583,11 +1599,28 @@ const FabricColorsPage = () => {
         </AlertDialogContent>
       </AlertDialog>
 
-      <Dialog open={editColorDialogOpen} onOpenChange={setEditColorDialogOpen}>
-        <DialogContent>
+      <Dialog
+        open={editColorDialogOpen}
+        onOpenChange={(open) => {
+          setEditColorDialogOpen(open);
+          if (!open) {
+            setIsSavingEditColor(false);
+            setEditColorDialogError(null);
+          }
+        }}
+      >
+        <DialogContent aria-busy={isSavingEditColor}>
           <DialogHeader>
             <DialogTitle>Editar Cor</DialogTitle>
           </DialogHeader>
+          {editColorDialogError ? (
+            <div
+              role="alert"
+              className="rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+            >
+              {editColorDialogError}
+            </div>
+          ) : null}
           <div className="space-y-4 py-2">
             <div className="space-y-2">
               <Label>Tipo de tecido</Label>
@@ -1596,12 +1629,14 @@ const FabricColorsPage = () => {
                   <label key={fabric.id} className="flex items-center gap-2 text-sm">
                     <input
                       type="checkbox"
+                      disabled={isSavingEditColor}
                       checked={editColorFabricTypeIds.includes(fabric.id)}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        setEditColorDialogError(null);
                         setEditColorFabricTypeIds((prev) =>
                           e.target.checked ? Array.from(new Set([...prev, fabric.id])) : prev.filter((id) => id !== fabric.id),
-                        )
-                      }
+                        );
+                      }}
                     />
                     <span>{fabric.nome}</span>
                   </label>
@@ -1610,22 +1645,62 @@ const FabricColorsPage = () => {
             </div>
             <div className="space-y-2">
               <Label>Código</Label>
-              <Input value={editColor.codigo} onChange={(e) => setEditColor({ ...editColor, codigo: e.target.value })} />
+              <Input
+                disabled={isSavingEditColor}
+                value={editColor.codigo}
+                onChange={(e) => {
+                  setEditColorDialogError(null);
+                  setEditColor({ ...editColor, codigo: e.target.value });
+                }}
+              />
             </div>
             <div className="space-y-2">
               <Label>Nome da cor</Label>
-              <Input value={editColor.nome} onChange={(e) => setEditColor({ ...editColor, nome: e.target.value })} />
+              <Input
+                disabled={isSavingEditColor}
+                value={editColor.nome}
+                onChange={(e) => {
+                  setEditColorDialogError(null);
+                  setEditColor({ ...editColor, nome: e.target.value });
+                }}
+              />
             </div>
             <div className="space-y-2">
               <Label>Hex</Label>
               <div className="flex gap-3">
-                <Input type="color" value={editColor.hex} onChange={(e) => setEditColor({ ...editColor, hex: e.target.value })} className="h-10 w-20 p-1 cursor-pointer" />
-                <Input value={editColor.hex} onChange={(e) => setEditColor({ ...editColor, hex: e.target.value })} className="font-mono uppercase" />
+                <Input
+                  type="color"
+                  disabled={isSavingEditColor}
+                  value={editColor.hex}
+                  onChange={(e) => {
+                    setEditColorDialogError(null);
+                    setEditColor({ ...editColor, hex: e.target.value });
+                  }}
+                  className="h-10 w-20 p-1 cursor-pointer"
+                />
+                <Input
+                  disabled={isSavingEditColor}
+                  value={editColor.hex}
+                  onChange={(e) => {
+                    setEditColorDialogError(null);
+                    setEditColor({ ...editColor, hex: e.target.value });
+                  }}
+                  className="font-mono uppercase"
+                />
               </div>
             </div>
           </div>
           <DialogFooter>
-            <Button onClick={handleUpdateColor}>Salvar Alterações</Button>
+            <Button type="button" disabled={isSavingEditColor} onClick={() => void handleUpdateColor()}>
+              {isSavingEditColor ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                  Salvando…
+                </>
+              ) : (
+                "Salvar Alterações"
+              )}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
