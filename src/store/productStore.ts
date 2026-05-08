@@ -32,11 +32,15 @@ interface ProductStore {
   deleteIndustry: (id: string) => Promise<void>;
 
   addFabricType: (fabricType: Omit<FabricType, 'createdAt'>) => Promise<void>;
+  updateFabricType: (fabricType: Omit<FabricType, 'createdAt'>) => Promise<void>;
   deleteFabricType: (id: string) => Promise<void>;
 
   addColor: (color: Omit<BaseColor, 'createdAt'>) => Promise<void>;
+  /** Várias cores numa única gravação + um fetch (evita UI “congelada” com vários tecidos). */
+  addColors: (colors: Omit<BaseColor, 'createdAt'>[]) => Promise<void>;
   updateColor: (color: Omit<BaseColor, 'createdAt'>) => Promise<void>;
   deleteColor: (id: string) => Promise<void>;
+  deleteColors: (ids: string[]) => Promise<void>;
   
   updateSettings: (settings: Partial<CompanySettings>) => Promise<void>;
   
@@ -361,6 +365,18 @@ export const useProductStore = create<ProductStore>((set, get) => ({
     await get().fetchData();
   },
 
+  updateFabricType: async (fabricType) => {
+    const { error } = await supabase.from('fabric_types').update({
+      industry_id: fabricType.industryId,
+      nome: fabricType.nome
+    }).eq('id', fabricType.id);
+    if (error) {
+      console.error('Erro ao atualizar tecido:', error);
+      throw error;
+    }
+    await get().fetchData();
+  },
+
   deleteFabricType: async (id) => {
     const { error } = await supabase.from('fabric_types').delete().eq('id', id);
     if (error) {
@@ -385,13 +401,34 @@ export const useProductStore = create<ProductStore>((set, get) => ({
     await get().fetchData();
   },
 
+  addColors: async (items) => {
+    if (!items.length) return;
+    const { error } = await supabase.from('colors').insert(
+      items.map((color) => ({
+        id: color.id,
+        fabric_type_id: color.fabricTypeId,
+        codigo: color.codigo,
+        nome: color.nome,
+        hex: color.hex,
+      })),
+    );
+    if (error) {
+      console.error('Erro ao adicionar cores:', error);
+      throw error;
+    }
+    await get().fetchData();
+  },
+
   updateColor: async (color) => {
-    const { error } = await supabase.from('colors').update({
+    const { error } = await supabase.from('colors').upsert({
+      id: color.id,
       fabric_type_id: color.fabricTypeId,
       codigo: color.codigo,
       nome: color.nome,
       hex: color.hex
-    }).eq('id', color.id);
+    }, {
+      onConflict: 'id'
+    });
     if (error) {
       console.error('Erro ao atualizar cor:', error);
       throw error;
@@ -403,6 +440,16 @@ export const useProductStore = create<ProductStore>((set, get) => ({
     const { error } = await supabase.from('colors').delete().eq('id', id);
     if (error) {
       console.error('Erro ao deletar cor:', error);
+      throw error;
+    }
+    await get().fetchData();
+  },
+
+  deleteColors: async (ids) => {
+    if (!ids.length) return;
+    const { error } = await supabase.from('colors').delete().in('id', ids);
+    if (error) {
+      console.error('Erro ao deletar cores em lote:', error);
       throw error;
     }
     await get().fetchData();
@@ -468,7 +515,8 @@ export const useProductStore = create<ProductStore>((set, get) => ({
       realtimeChannel = null;
     }
     realtimeSubscribed = false;
-    fetchInflight = null;
+    // Invalida respostas assíncronas de fetchData iniciadas antes do logout/reset.
+    currentFetchId += 1;
     set({
       hospitals: [],
       products: [],

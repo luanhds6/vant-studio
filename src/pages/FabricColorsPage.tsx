@@ -1,158 +1,993 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useProductStore } from "@/store/productStore";
-import { useAuthStore } from "@/store/authStore";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Plus, Trash2, Factory, Scissors, Palette } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Factory, Palette, Pencil, Printer, Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const generateId = () => crypto.randomUUID();
+const FABRIC_MARKER_COLORS = ["#2563eb", "#16a34a", "#d97706", "#9333ea", "#dc2626", "#0891b2", "#7c3aed"];
+const FABRIC_MARKER_STORAGE_KEY = "fabric-marker-colors-v1";
+const FABRIC_MARKER_SHAPES_STORAGE_KEY = "fabric-marker-shapes-v1";
+type FabricMarkerShape = "circle" | "circle-outline" | "square" | "square-outline" | "triangle" | "triangle-down" | "diamond" | "star" | "hexagon";
+const DEFAULT_FABRIC_MARKER_SHAPE: FabricMarkerShape = "circle";
+const FABRIC_SHAPE_OPTIONS: { value: FabricMarkerShape; label: string; symbol: string }[] = [
+  { value: "circle", label: "Círculo", symbol: "●" },
+  { value: "circle-outline", label: "Círculo vazado", symbol: "○" },
+  { value: "square", label: "Quadrado", symbol: "■" },
+  { value: "square-outline", label: "Quadrado vazado", symbol: "□" },
+  { value: "triangle", label: "Triângulo", symbol: "▲" },
+  { value: "triangle-down", label: "Triângulo invertido", symbol: "▼" },
+  { value: "diamond", label: "Losango", symbol: "◆" },
+  { value: "star", label: "Estrela", symbol: "★" },
+  { value: "hexagon", label: "Hexágono", symbol: "⬢" },
+];
+
+/** Normaliza hex para comparação (evita duplicata “fantasma” entre #020203 e 020203). */
+const normalizeHexForKey = (hex: string) => {
+  let h = (hex || "").trim().toLowerCase();
+  if (!h) return "";
+  if (!h.startsWith("#")) h = `#${h}`;
+  if (/^#[0-9a-f]{3}$/.test(h)) {
+    h = `#${h[1]}${h[1]}${h[2]}${h[2]}${h[3]}${h[3]}`;
+  }
+  return /^#[0-9a-f]{6}$/.test(h) ? h : (hex || "").trim().toLowerCase();
+};
+
+const colorFamilyKey = (color: { codigo?: string; nome: string; hex: string }) =>
+  `${(color.codigo || "").trim().toLowerCase()}|${(color.nome || "").trim().toLowerCase()}|${normalizeHexForKey(color.hex || "")}`;
+/** Quantidade de cores mostradas na legenda antes de pedir «Expandir». */
+const LEGEND_CARD_PREVIEW_COUNT = 5;
+
+const LEGEND_PRESET_FROM_PRINTS: Array<{ nome: string; color: string; shape: FabricMarkerShape }> = [
+  { nome: "WORKDENIN PROF 5 OZ", color: "#1f2f6a", shape: "star" },
+  { nome: "CEDROWORK BLUE", color: "#ffe500", shape: "circle" },
+  { nome: "CEDROMIX 5 oz II", color: "#00a0ef", shape: "circle" },
+  { nome: "CEDROMIX 8 oz II", color: "#1f2f6a", shape: "star" },
+  { nome: "POLYFLEX PROF", color: "#4bae35", shape: "circle" },
+  { nome: "POLYCEDROBRIM SUPER II", color: "#00a0ef", shape: "circle-outline" },
+  { nome: "POLYCEDROLEVE SUPER II", color: "#e31820", shape: "square-outline" },
+  { nome: "POLYCOTON MAIS", color: "#ffd700", shape: "star" },
+  { nome: "POLYCOTTON LEVE II", color: "#e31820", shape: "triangle" },
+  { nome: "CEDROPAC II / CEDROPAC LEVE II", color: "#f4b4c7", shape: "hexagon" },
+  { nome: "CEDROLEVE DRILL II / CEDROBRIM DRILL II", color: "#7f3ba8", shape: "circle" },
+  { nome: "CEDROLEVE SUPER II / CEDROBRIM SUPER II", color: "#e31820", shape: "square" },
+  { nome: "VERSÁTIL WORK II", color: "#f6c27d", shape: "hexagon" },
+  { nome: "VERSÁTIL WORK LEVE", color: "#f6c27d", shape: "hexagon" },
+  { nome: "CEDROVIP MIX", color: "#f39c12", shape: "triangle" },
+  { nome: "CEDROFIL", color: "#f3c9cf", shape: "square" },
+  { nome: "CEDROVIP SUPER", color: "#58b947", shape: "hexagon" },
+  { nome: "CEDROFIL FLEX", color: "#8e44ad", shape: "triangle-down" },
+  { nome: "KIRAZ DARK", color: "#1f2f6a", shape: "circle" },
+  { nome: "KIRAZ BLUE", color: "#27439c", shape: "circle" },
+  { nome: "NEW WORKFLEX", color: "#f3c9cf", shape: "triangle" },
+];
 
 const FabricColorsPage = () => {
   const navigate = useNavigate();
-  const { industries, fabricTypes, colors, addIndustry, deleteIndustry, addFabricType, deleteFabricType, addColor, deleteColor } = useProductStore();
-  
-  // Navigation State
-  const [selectedIndustryId, setSelectedIndustryId] = useState<string | null>(null);
-  const [selectedFabricTypeId, setSelectedFabricTypeId] = useState<string | null>(null);
+  const {
+    industries,
+    fabricTypes,
+    colors,
+    addIndustry,
+    deleteIndustry,
+    addFabricType,
+    updateFabricType,
+    deleteFabricType,
+    addColor,
+    addColors,
+    updateColor,
+    deleteColor,
+    deleteColors,
+  } =
+    useProductStore();
 
-  // Form State
+  const [selectedIndustryId, setSelectedIndustryId] = useState<string | null>(null);
   const [newIndustryName, setNewIndustryName] = useState("");
   const [newFabricName, setNewFabricName] = useState("");
+  const [newFabricMarkerColor, setNewFabricMarkerColor] = useState("#2563eb");
+  const [newFabricMarkerShape, setNewFabricMarkerShape] = useState<FabricMarkerShape>(DEFAULT_FABRIC_MARKER_SHAPE);
+  const [newColorFabricTypeIds, setNewColorFabricTypeIds] = useState<string[]>([]);
   const [newColor, setNewColor] = useState({ nome: "", hex: "#000000", codigo: "" });
-  
-  // Dialog Open States
+  const [colorSearch, setColorSearch] = useState("");
+  const [fabricSearch, setFabricSearch] = useState("");
+  const [selectedColorKeys, setSelectedColorKeys] = useState<string[]>([]);
+  const [selectedLegendFabricIds, setSelectedLegendFabricIds] = useState<string[]>([]);
+  const [expandedFabricLegendIds, setExpandedFabricLegendIds] = useState<string[]>([]);
+
   const [industryDialogOpen, setIndustryDialogOpen] = useState(false);
   const [fabricDialogOpen, setFabricDialogOpen] = useState(false);
   const [colorDialogOpen, setColorDialogOpen] = useState(false);
+  const [colorDialogError, setColorDialogError] = useState<string | null>(null);
+  const [isSavingNewColor, setIsSavingNewColor] = useState(false);
+  const [editColorDialogOpen, setEditColorDialogOpen] = useState(false);
+  const [editFabricDialogOpen, setEditFabricDialogOpen] = useState(false);
 
-  // Delete Confirmation States
   const [industryToDelete, setIndustryToDelete] = useState<string | null>(null);
   const [fabricToDelete, setFabricToDelete] = useState<string | null>(null);
-  const [colorToDelete, setColorToDelete] = useState<string | null>(null);
+  const [colorToDeleteKey, setColorToDeleteKey] = useState<string | null>(null);
+  const [bulkDeleteColorsOpen, setBulkDeleteColorsOpen] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkDeleteTotal, setBulkDeleteTotal] = useState(0);
+  const [bulkDeleteDone, setBulkDeleteDone] = useState(0);
+  const [editingColorId, setEditingColorId] = useState<string | null>(null);
+  const [editColorFabricTypeIds, setEditColorFabricTypeIds] = useState<string[]>([]);
+  const [editingColorLinkedIds, setEditingColorLinkedIds] = useState<string[]>([]);
+  const [editColor, setEditColor] = useState({ nome: "", hex: "#000000", codigo: "" });
+  const [editingFabricId, setEditingFabricId] = useState<string | null>(null);
+  const [editFabricName, setEditFabricName] = useState("");
+  const [editFabricMarkerColor, setEditFabricMarkerColor] = useState("#2563eb");
+  const [editFabricMarkerShape, setEditFabricMarkerShape] = useState<FabricMarkerShape>(DEFAULT_FABRIC_MARKER_SHAPE);
+  const [isSavingFabric, setIsSavingFabric] = useState(false);
+  const [autoAppliedLegendIndustryIds, setAutoAppliedLegendIndustryIds] = useState<string[]>([]);
+  const [isDedupingLegends, setIsDedupingLegends] = useState(false);
+  const [fabricMarkerOverrides, setFabricMarkerOverrides] = useState<Record<string, string>>({});
+  const [fabricMarkerShapeOverrides, setFabricMarkerShapeOverrides] = useState<Record<string, FabricMarkerShape>>({});
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(FABRIC_MARKER_STORAGE_KEY);
+      if (!stored) return;
+      const parsed = JSON.parse(stored) as Record<string, string>;
+      if (parsed && typeof parsed === "object") {
+        setFabricMarkerOverrides(parsed);
+      }
+    } catch {
+      // Ignora falha de leitura do localStorage
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(FABRIC_MARKER_STORAGE_KEY, JSON.stringify(fabricMarkerOverrides));
+    } catch {
+      // Ignora falha de escrita do localStorage
+    }
+  }, [fabricMarkerOverrides]);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(FABRIC_MARKER_SHAPES_STORAGE_KEY);
+      if (!stored) return;
+      const parsed = JSON.parse(stored) as Record<string, FabricMarkerShape>;
+      if (parsed && typeof parsed === "object") {
+        setFabricMarkerShapeOverrides(parsed);
+      }
+    } catch {
+      // Ignora falha de leitura do localStorage
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(FABRIC_MARKER_SHAPES_STORAGE_KEY, JSON.stringify(fabricMarkerShapeOverrides));
+    } catch {
+      // Ignora falha de escrita do localStorage
+    }
+  }, [fabricMarkerShapeOverrides]);
+
+  useEffect(() => {
+    setExpandedFabricLegendIds([]);
+  }, [selectedIndustryId]);
+
+  const selectedIndustry = useMemo(
+    () => industries.find((industry) => industry.id === selectedIndustryId),
+    [industries, selectedIndustryId],
+  );
+  const selectedIndustryFabrics = useMemo(
+    () => fabricTypes.filter((fabric) => fabric.industryId === selectedIndustryId),
+    [fabricTypes, selectedIndustryId],
+  );
+  const selectedIndustryColors = useMemo(
+    () => colors.filter((color) => selectedIndustryFabrics.some((fabric) => fabric.id === color.fabricTypeId)),
+    [colors, selectedIndustryFabrics],
+  );
+  const fabricNameById = useMemo(
+    () =>
+      selectedIndustryFabrics.reduce<Record<string, string>>((acc, fabric) => {
+        acc[fabric.id] = fabric.nome || "";
+        return acc;
+      }, {}),
+    [selectedIndustryFabrics],
+  );
+  const filteredIndustryColors = useMemo(() => {
+    const baseColors =
+      selectedLegendFabricIds.length > 0
+        ? selectedIndustryColors.filter((color) => color.fabricTypeId && selectedLegendFabricIds.includes(color.fabricTypeId))
+        : selectedIndustryColors;
+    const term = colorSearch.trim().toLowerCase();
+    if (!term) return baseColors;
+    return baseColors.filter((color) => {
+      const codigo = (color.codigo || "").toLowerCase();
+      const nome = (color.nome || "").toLowerCase();
+      const tecido = (fabricNameById[color.fabricTypeId || ""] || "").toLowerCase();
+      return codigo.includes(term) || nome.includes(term) || tecido.includes(term);
+    });
+  }, [selectedIndustryColors, colorSearch, selectedLegendFabricIds, fabricNameById]);
+  const colorFamilies = useMemo(() => {
+    const rowsByKey = selectedIndustryColors.reduce<Record<string, typeof selectedIndustryColors>>((acc, row) => {
+      const key = colorFamilyKey(row);
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(row);
+      return acc;
+    }, {});
+    const filteredKeysInOrder: string[] = [];
+    filteredIndustryColors.forEach((row) => {
+      const key = colorFamilyKey(row);
+      if (!filteredKeysInOrder.includes(key)) filteredKeysInOrder.push(key);
+    });
+
+    return filteredKeysInOrder.map((key) => {
+      const rows = rowsByKey[key] || [];
+      const representative = rows[0];
+      const linkedFabricIds = Array.from(
+        new Set(rows.map((row) => row.fabricTypeId).filter((id): id is string => Boolean(id))),
+      );
+      const primaryFabricId =
+        selectedIndustryFabrics.find((fabric) => linkedFabricIds.includes(fabric.id))?.id || linkedFabricIds[0] || "";
+      return {
+        key,
+        representative,
+        rows,
+        linkedFabricIds,
+        primaryFabricId,
+      };
+    });
+  }, [selectedIndustryColors, filteredIndustryColors, selectedIndustryFabrics]);
+  const displayFabrics = useMemo(() => {
+    const bySelected =
+      selectedLegendFabricIds.length === 0
+        ? selectedIndustryFabrics
+        : selectedIndustryFabrics.filter((fabric) => selectedLegendFabricIds.includes(fabric.id));
+    const term = fabricSearch.trim().toLowerCase();
+    if (!term) return bySelected;
+    return bySelected.filter((fabric) => (fabric.nome || "").toLowerCase().includes(term));
+  }, [selectedIndustryFabrics, selectedLegendFabricIds, fabricSearch]);
+  const visibleLegendFabrics = useMemo(() => {
+    const term = fabricSearch.trim().toLowerCase();
+    const base =
+      term === ""
+        ? selectedIndustryFabrics
+        : selectedIndustryFabrics.filter((fabric) => (fabric.nome || "").toLowerCase().includes(term));
+
+    const colorCountByFabricId = colors.reduce<Record<string, number>>((acc, row) => {
+      if (!row.fabricTypeId) return acc;
+      acc[row.fabricTypeId] = (acc[row.fabricTypeId] || 0) + 1;
+      return acc;
+    }, {});
+
+    return [...base].sort((a, b) => {
+      const ca = colorCountByFabricId[a.id] || 0;
+      const cb = colorCountByFabricId[b.id] || 0;
+      const hasA = ca > 0 ? 1 : 0;
+      const hasB = cb > 0 ? 1 : 0;
+      if (hasA !== hasB) return hasB - hasA;
+      if (cb !== ca) return cb - ca;
+      return (a.nome || "").localeCompare(b.nome || "", "pt-BR", { sensitivity: "base" });
+    });
+  }, [selectedIndustryFabrics, fabricSearch, colors]);
+  const groupedFilteredColors = useMemo(() => {
+    const totalByFabricId = selectedIndustryColors.reduce<Record<string, number>>((acc, color) => {
+      if (!color.fabricTypeId) return acc;
+      acc[color.fabricTypeId] = (acc[color.fabricTypeId] || 0) + 1;
+      return acc;
+    }, {});
+
+    const groups = displayFabrics.map((fabric) => {
+      const families = colorFamilies.filter((family) => family.primaryFabricId === fabric.id);
+      return {
+        fabric,
+        families,
+        filteredCount: families.length,
+        totalCount: totalByFabricId[fabric.id] || 0,
+      };
+    });
+
+    return groups.sort((a, b) => {
+      if (a.filteredCount > 0 && b.filteredCount === 0) return -1;
+      if (a.filteredCount === 0 && b.filteredCount > 0) return 1;
+      if (a.totalCount > 0 && b.totalCount === 0) return -1;
+      if (a.totalCount === 0 && b.totalCount > 0) return 1;
+      if (a.filteredCount !== b.filteredCount) return b.filteredCount - a.filteredCount;
+      if (a.totalCount !== b.totalCount) return b.totalCount - a.totalCount;
+      return 0;
+    });
+  }, [displayFabrics, colorFamilies, selectedIndustryColors]);
+
+  const markerColorByFabricId = useMemo(
+    () =>
+      selectedIndustryFabrics.reduce<Record<string, string>>((acc, fabric, index) => {
+        acc[fabric.id] = fabricMarkerOverrides[fabric.id] || FABRIC_MARKER_COLORS[index % FABRIC_MARKER_COLORS.length];
+        return acc;
+      }, {}),
+    [selectedIndustryFabrics, fabricMarkerOverrides],
+  );
+  const markerShapeByFabricId = useMemo(
+    () =>
+      selectedIndustryFabrics.reduce<Record<string, FabricMarkerShape>>((acc, fabric) => {
+        acc[fabric.id] = fabricMarkerShapeOverrides[fabric.id] || DEFAULT_FABRIC_MARKER_SHAPE;
+        return acc;
+      }, {}),
+    [selectedIndustryFabrics, fabricMarkerShapeOverrides],
+  );
+
+  const normalizeLegendName = (value: string) =>
+    value
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, " ");
+  const selectedColorsForPrint = useMemo(
+    () => colorFamilies.filter((family) => selectedColorKeys.includes(family.key)),
+    [colorFamilies, selectedColorKeys],
+  );
+
+  const renderFabricMarker = (fabricId: string, className = "text-xs") => {
+    const shape = markerShapeByFabricId[fabricId] || DEFAULT_FABRIC_MARKER_SHAPE;
+    const symbol = FABRIC_SHAPE_OPTIONS.find((item) => item.value === shape)?.symbol || "●";
+    return (
+      <span
+        className={`inline-flex items-center justify-center leading-none ${className}`}
+        style={{ color: markerColorByFabricId[fabricId] || "#666666" }}
+        aria-hidden="true"
+      >
+        {symbol}
+      </span>
+    );
+  };
+
+  const applyLegendPresetFromPrints = async (silent = false) => {
+    if (!selectedIndustryId) {
+      if (!silent) {
+        toast({ title: "Selecione uma indústria para aplicar as legends", variant: "destructive" });
+      }
+      return;
+    }
+    try {
+      const existingByName = new Map(
+        selectedIndustryFabrics.map((fabric) => [normalizeLegendName(fabric.nome), fabric.id]),
+      );
+      const colorUpdates: Record<string, string> = {};
+      const shapeUpdates: Record<string, FabricMarkerShape> = {};
+      let createdCount = 0;
+
+      for (const preset of LEGEND_PRESET_FROM_PRINTS) {
+        const normalized = normalizeLegendName(preset.nome);
+        let fabricId = existingByName.get(normalized);
+        if (!fabricId) {
+          fabricId = generateId();
+          await addFabricType({
+            id: fabricId,
+            industryId: selectedIndustryId,
+            nome: preset.nome,
+          });
+          existingByName.set(normalized, fabricId);
+          createdCount += 1;
+        }
+        colorUpdates[fabricId] = preset.color;
+        shapeUpdates[fabricId] = preset.shape;
+      }
+
+      setFabricMarkerOverrides((prev) => ({ ...prev, ...colorUpdates }));
+      setFabricMarkerShapeOverrides((prev) => ({ ...prev, ...shapeUpdates }));
+      if (!silent) {
+        toast({
+          title: "Legends aplicadas com sucesso",
+          description: `${LEGEND_PRESET_FROM_PRINTS.length} legends processadas (${createdCount} novas).`,
+        });
+      }
+    } catch {
+      if (!silent) {
+        toast({
+          title: "Erro ao aplicar legends dos prints",
+          description: "Tente novamente.",
+          variant: "destructive",
+        });
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (!selectedIndustryId || !selectedIndustry) return;
+    if (autoAppliedLegendIndustryIds.includes(selectedIndustryId)) return;
+
+    void applyLegendPresetFromPrints(true).then(() => {
+      setAutoAppliedLegendIndustryIds((prev) =>
+        prev.includes(selectedIndustryId) ? prev : [...prev, selectedIndustryId],
+      );
+    });
+  }, [selectedIndustryId, selectedIndustry, autoAppliedLegendIndustryIds]);
+
+  useEffect(() => {
+    if (!selectedIndustryId || !selectedIndustry || isDedupingLegends) return;
+
+    const runDedup = async () => {
+      const grouped = new Map<string, Array<(typeof selectedIndustryFabrics)[number]>>();
+      selectedIndustryFabrics.forEach((fabric) => {
+        const key = normalizeLegendName(fabric.nome);
+        const list = grouped.get(key) || [];
+        list.push(fabric);
+        grouped.set(key, list);
+      });
+
+      const duplicateGroups = Array.from(grouped.values()).filter((group) => group.length > 1);
+      if (duplicateGroups.length === 0) return;
+
+      setIsDedupingLegends(true);
+      try {
+        for (const group of duplicateGroups) {
+          const [keeper, ...duplicates] = group;
+          for (const duplicate of duplicates) {
+            const duplicateColors = colors.filter((color) => color.fabricTypeId === duplicate.id);
+            const keeperColors = colors.filter((color) => color.fabricTypeId === keeper.id);
+
+            for (const color of duplicateColors) {
+              const alreadyExists = keeperColors.some(
+                (k) =>
+                  (k.codigo || "").trim().toLowerCase() === (color.codigo || "").trim().toLowerCase() &&
+                  (k.nome || "").trim().toLowerCase() === (color.nome || "").trim().toLowerCase() &&
+                  (k.hex || "").trim().toLowerCase() === (color.hex || "").trim().toLowerCase(),
+              );
+              if (alreadyExists) {
+                await deleteColor(color.id);
+              } else {
+                await updateColor({
+                  id: color.id,
+                  fabricTypeId: keeper.id,
+                  codigo: color.codigo,
+                  nome: color.nome,
+                  hex: color.hex,
+                });
+              }
+            }
+            await deleteFabricType(duplicate.id);
+          }
+        }
+      } catch {
+        toast({
+          title: "Erro ao remover legends duplicadas",
+          description: "Tente novamente.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsDedupingLegends(false);
+      }
+    };
+
+    void runDedup();
+  }, [selectedIndustryId, selectedIndustry, selectedIndustryFabrics, colors, isDedupingLegends]);
 
   const handleAddIndustry = async () => {
-    if (!newIndustryName.trim()) return toast({ title: "Informe o nome da indústria", variant: "destructive" });
+    if (!newIndustryName.trim()) {
+      toast({ title: "Informe o nome da indústria", variant: "destructive" });
+      return;
+    }
     try {
       await addIndustry({ id: generateId(), nome: newIndustryName.trim() });
       setNewIndustryName("");
       setIndustryDialogOpen(false);
       toast({ title: "Indústria cadastrada" });
-    } catch (e) {
-      toast({ title: "Erro ao cadastrar", variant: "destructive" });
+    } catch {
+      toast({ title: "Erro ao cadastrar indústria", variant: "destructive" });
     }
   };
 
   const handleAddFabricType = async () => {
-    if (!newFabricName.trim() || !selectedIndustryId) return toast({ title: "Informe o nome do tecido", variant: "destructive" });
+    if (!selectedIndustryId || !newFabricName.trim()) {
+      toast({ title: "Informe o nome da legenda de tecido", variant: "destructive" });
+      return;
+    }
     try {
-      await addFabricType({ id: generateId(), industryId: selectedIndustryId, nome: newFabricName.trim() });
+      const fabricId = generateId();
+      await addFabricType({ id: fabricId, industryId: selectedIndustryId, nome: newFabricName.trim() });
+      setFabricMarkerOverrides((prev) => ({ ...prev, [fabricId]: newFabricMarkerColor }));
+      setFabricMarkerShapeOverrides((prev) => ({ ...prev, [fabricId]: newFabricMarkerShape }));
       setNewFabricName("");
+      setNewFabricMarkerColor("#2563eb");
+      setNewFabricMarkerShape(DEFAULT_FABRIC_MARKER_SHAPE);
       setFabricDialogOpen(false);
-      toast({ title: "Tecido cadastrado" });
-    } catch (e) {
-      toast({ title: "Erro ao cadastrar", variant: "destructive" });
+      toast({ title: "Legenda de tecido cadastrada" });
+    } catch {
+      toast({ title: "Erro ao cadastrar legenda de tecido", variant: "destructive" });
     }
   };
 
   const handleAddColor = async () => {
-    if (!newColor.nome.trim() || !newColor.codigo.trim() || !selectedFabricTypeId) {
-      return toast({ title: "Preencha o nome e o código exclusivo", variant: "destructive" });
+    setColorDialogError(null);
+    if (!newColor.nome.trim() || !newColor.codigo.trim() || newColorFabricTypeIds.length === 0) {
+      const msg = "Selecione ao menos um tecido de legenda, preencha o nome e o código da cor.";
+      setColorDialogError(msg);
+      toast({ title: "Dados incompletos", description: msg, variant: "destructive" });
+      return;
     }
-    try {
-      await addColor({
-        id: generateId(),
-        fabricTypeId: selectedFabricTypeId,
-        nome: newColor.nome.trim(),
-        codigo: newColor.codigo.trim(),
-        hex: newColor.hex,
-      });
-      setNewColor({ nome: "", hex: "#000000", codigo: "" });
-      setColorDialogOpen(false);
-      toast({ title: "Cor cadastrada" });
-    } catch (e) {
-      toast({ title: "Erro ao cadastrar", variant: "destructive" });
+
+    const hexForSave = normalizeHexForKey(newColor.hex) || newColor.hex.trim();
+    const trimmed = {
+      nome: newColor.nome.trim(),
+      codigo: newColor.codigo.trim(),
+      hex: hexForSave,
+    };
+    const incomingKey = colorFamilyKey(trimmed);
+    const fabricsWithDuplicate: string[] = [];
+    const fabricIdsToInsert: string[] = [];
+
+    for (const fabricTypeId of newColorFabricTypeIds) {
+      const alreadySameColor = colors.some(
+        (color) => color.fabricTypeId === fabricTypeId && colorFamilyKey(color) === incomingKey,
+      );
+      if (alreadySameColor) {
+        fabricsWithDuplicate.push(fabricTypeId);
+      } else {
+        fabricIdsToInsert.push(fabricTypeId);
+      }
     }
-  };
 
-  const selectedIndustry = industries.find(i => i.id === selectedIndustryId);
-  const selectedFabricType = fabricTypes.find(f => f.id === selectedFabricTypeId);
-
-  const handleDeleteIndustryClick = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const hasFabrics = fabricTypes.some(f => f.industryId === id);
-    if (hasFabrics) {
-      toast({ 
-        title: "Ação bloqueada", 
-        description: "Esta indústria possui tipos de tecido cadastrados. Para excluí-la, você precisa primeiro apagar todos os tecidos vinculados a ela.", 
-        variant: "destructive" 
+    if (fabricIdsToInsert.length === 0) {
+      const nomes = fabricsWithDuplicate.map((id) => fabricNameById[id] || id).join(", ");
+      const msg = `Já existe um cadastro igual (código "${trimmed.codigo}", nome "${trimmed.nome}" e tom ${trimmed.hex}) para ${fabricsWithDuplicate.length > 1 ? "os tecidos" : "o tecido"}: ${nomes}. Altere algum dado ou edite o registro existente.`;
+      setColorDialogError(msg);
+      toast({
+        title: "Não foi possível cadastrar esta cor",
+        description: msg,
+        variant: "destructive",
       });
       return;
     }
-    setIndustryToDelete(id);
+
+    setIsSavingNewColor(true);
+    try {
+      await addColors(
+        fabricIdsToInsert.map((fabricTypeId) => ({
+          id: generateId(),
+          fabricTypeId,
+          nome: trimmed.nome,
+          codigo: trimmed.codigo,
+          hex: trimmed.hex,
+        })),
+      );
+      setNewColor({ nome: "", hex: "#000000", codigo: "" });
+      setNewColorFabricTypeIds([]);
+      setColorDialogOpen(false);
+      setColorDialogError(null);
+      if (fabricsWithDuplicate.length > 0) {
+        const nomesIgnorados = fabricsWithDuplicate.map((id) => fabricNameById[id] || id).join(", ");
+        toast({
+          title: "Cor cadastrada",
+          description: `Nos tecidos ${nomesIgnorados} essa cor já existia (mesmo código, nome e hex); apenas os demais foram atualizados.`,
+        });
+      } else {
+        toast({ title: "Cor cadastrada" });
+      }
+    } catch (err: unknown) {
+      const description =
+        err && typeof err === "object" && "message" in err && typeof (err as { message: string }).message === "string"
+          ? (err as { message: string }).message
+          : "Verifique a conexão e as permissões do banco. Se persistir, pode haver uma regra única (ex.: código repetido no mesmo tecido).";
+      setColorDialogError(description);
+      toast({ title: "Erro ao cadastrar cor", description, variant: "destructive" });
+    } finally {
+      setIsSavingNewColor(false);
+    }
+  };
+
+  const handleDeleteIndustryClick = (industryId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const hasFabrics = fabricTypes.some((fabric) => fabric.industryId === industryId);
+    if (hasFabrics) {
+      toast({
+        title: "Ação bloqueada",
+        description: "Exclua os tipos de tecido vinculados antes de remover a indústria.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setIndustryToDelete(industryId);
   };
 
   const confirmDeleteIndustry = async () => {
-    if (industryToDelete) {
-      try {
-        await deleteIndustry(industryToDelete);
-        toast({ title: "Indústria excluída" });
-      } catch (e) {
-        toast({ title: "Erro ao excluir indústria", variant: "destructive" });
-      } finally {
-        setIndustryToDelete(null);
-      }
+    if (!industryToDelete) return;
+    try {
+      await deleteIndustry(industryToDelete);
+      toast({ title: "Indústria excluída" });
+    } catch {
+      toast({ title: "Erro ao excluir indústria", variant: "destructive" });
+    } finally {
+      setIndustryToDelete(null);
     }
   };
 
-  const handleDeleteFabricClick = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const hasColors = colors.some(c => c.fabricTypeId === id);
+  const handleDeleteFabricClick = (fabricId: string) => {
+    const hasColors = colors.some((color) => color.fabricTypeId === fabricId);
     if (hasColors) {
-      toast({ 
-        title: "Ação bloqueada", 
-        description: "Este tecido possui cores cadastradas. Para excluí-lo, você precisa primeiro apagar todas as cores vinculadas a ele.", 
-        variant: "destructive" 
+      toast({
+        title: "Ação bloqueada",
+        description: "Exclua as cores vinculadas antes de remover o tecido.",
+        variant: "destructive",
       });
       return;
     }
-    setFabricToDelete(id);
+    setFabricToDelete(fabricId);
+  };
+
+  const startEditFabric = (fabricId: string) => {
+    const fabric = selectedIndustryFabrics.find((item) => item.id === fabricId);
+    if (!fabric) return;
+    setEditingFabricId(fabric.id);
+    setEditFabricName(fabric.nome);
+    setEditFabricMarkerColor(markerColorByFabricId[fabric.id] || "#2563eb");
+    setEditFabricMarkerShape(markerShapeByFabricId[fabric.id] || DEFAULT_FABRIC_MARKER_SHAPE);
+    setEditFabricDialogOpen(true);
+  };
+
+  const handleUpdateFabric = async () => {
+    if (!editingFabricId) {
+      toast({ title: "Nenhum tecido selecionado para edição", variant: "destructive" });
+      return;
+    }
+    if (!editFabricName.trim()) {
+      toast({ title: "Informe o nome do tecido", variant: "destructive" });
+      return;
+    }
+    const currentFabric = fabricTypes.find((fabric) => fabric.id === editingFabricId);
+    if (!currentFabric) {
+      toast({ title: "Tecido não encontrado", variant: "destructive" });
+      return;
+    }
+    setIsSavingFabric(true);
+    try {
+      if (editFabricName.trim() !== currentFabric.nome.trim()) {
+        await updateFabricType({
+          id: editingFabricId,
+          industryId: currentFabric.industryId,
+          nome: editFabricName.trim(),
+        });
+      }
+      setFabricMarkerOverrides((prev) => ({ ...prev, [editingFabricId]: editFabricMarkerColor }));
+      setFabricMarkerShapeOverrides((prev) => ({ ...prev, [editingFabricId]: editFabricMarkerShape }));
+      setEditFabricDialogOpen(false);
+      setEditingFabricId(null);
+      setEditFabricName("");
+      setEditFabricMarkerColor("#2563eb");
+      setEditFabricMarkerShape(DEFAULT_FABRIC_MARKER_SHAPE);
+      toast({ title: "Tecido atualizado" });
+    } catch {
+      toast({ title: "Erro ao atualizar tecido", variant: "destructive" });
+    } finally {
+      setIsSavingFabric(false);
+    }
   };
 
   const confirmDeleteFabric = async () => {
-    if (fabricToDelete) {
-      try {
-        await deleteFabricType(fabricToDelete);
-        toast({ title: "Tecido excluído" });
-      } catch (e) {
-        toast({ title: "Erro ao excluir tecido", variant: "destructive" });
-      } finally {
-        setFabricToDelete(null);
-      }
+    if (!fabricToDelete) return;
+    try {
+      await deleteFabricType(fabricToDelete);
+      setNewColorFabricTypeIds((prev) => prev.filter((id) => id !== fabricToDelete));
+      toast({ title: "Tipo de tecido excluído" });
+    } catch {
+      toast({ title: "Erro ao excluir tipo de tecido", variant: "destructive" });
+    } finally {
+      setFabricToDelete(null);
     }
-  };
-
-  const handleDeleteColorClick = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setColorToDelete(id);
   };
 
   const confirmDeleteColor = async () => {
-    if (colorToDelete) {
-      try {
-        await deleteColor(colorToDelete);
-        toast({ title: "Cor excluída" });
-      } catch (e) {
-        toast({ title: "Erro ao excluir cor", variant: "destructive" });
-      } finally {
-        setColorToDelete(null);
-      }
+    if (!colorToDeleteKey) return;
+    try {
+      const family = colorFamilies.find((item) => item.key === colorToDeleteKey);
+      if (!family) return;
+      await deleteColors(family.rows.map((row) => row.id));
+      setSelectedColorKeys((prev) => prev.filter((key) => key !== colorToDeleteKey));
+      toast({ title: "Cor excluída" });
+    } catch {
+      toast({ title: "Erro ao excluir cor", variant: "destructive" });
+    } finally {
+      setColorToDeleteKey(null);
     }
+  };
+
+  const confirmDeleteSelectedColors = async () => {
+    if (selectedColorKeys.length === 0) {
+      setBulkDeleteColorsOpen(false);
+      return;
+    }
+    const idsToDelete = colorFamilies
+      .filter((family) => selectedColorKeys.includes(family.key))
+      .flatMap((family) => family.rows.map((row) => row.id));
+    setBulkDeleteColorsOpen(false);
+    setBulkDeleting(true);
+    setBulkDeleteTotal(idsToDelete.length);
+    setBulkDeleteDone(0);
+
+    try {
+      // Atualiza a barra para feedback imediato.
+      setBulkDeleteDone(Math.max(1, Math.floor(idsToDelete.length * 0.35)));
+      await deleteColors(idsToDelete);
+      setBulkDeleteDone(idsToDelete.length);
+      setSelectedColorKeys([]);
+      toast({ title: `${selectedColorKeys.length} cor(es) excluída(s)` });
+    } catch {
+      toast({
+        title: "Não foi possível excluir as cores selecionadas",
+        description: "Tente novamente. Se persistir, pode haver bloqueio de permissão no banco.",
+        variant: "destructive",
+      });
+    } finally {
+      setBulkDeleting(false);
+      setBulkDeleteColorsOpen(false);
+    }
+  };
+
+  const startEditColor = (colorId: string) => {
+    const color = colors.find((item) => item.id === colorId);
+    if (!color) return;
+    const linked = selectedIndustryColors.filter(
+      (item) =>
+        (item.codigo || "").trim().toLowerCase() === (color.codigo || "").trim().toLowerCase() &&
+        (item.nome || "").trim().toLowerCase() === (color.nome || "").trim().toLowerCase() &&
+        (item.hex || "").trim().toLowerCase() === (color.hex || "").trim().toLowerCase(),
+    );
+    const linkedRows = linked.length > 0 ? linked : [color];
+    setEditingColorId(color.id);
+    setEditingColorLinkedIds(linkedRows.map((item) => item.id));
+    setEditColorFabricTypeIds(
+      Array.from(new Set(linkedRows.map((item) => item.fabricTypeId).filter((id): id is string => Boolean(id)))),
+    );
+    setEditColor({ nome: color.nome || "", hex: color.hex || "#000000", codigo: color.codigo || "" });
+    setEditColorDialogOpen(true);
+  };
+
+  const handleUpdateColor = async () => {
+    if (!editingColorId || editColorFabricTypeIds.length === 0 || !editColor.nome.trim() || !editColor.codigo.trim()) {
+      toast({ title: "Selecione ao menos um tecido, nome e código", variant: "destructive" });
+      return;
+    }
+    try {
+      const linkedRows = editingColorLinkedIds
+        .map((id) => colors.find((item) => item.id === id))
+        .filter((item): item is NonNullable<typeof item> => Boolean(item));
+
+      const byFabric = new Map<string, { id: string }>();
+      linkedRows.forEach((row) => {
+        if (row.fabricTypeId) byFabric.set(row.fabricTypeId, { id: row.id });
+      });
+
+      const candidateTrimmed = {
+        nome: editColor.nome.trim(),
+        codigo: editColor.codigo.trim(),
+        hex: editColor.hex,
+      };
+      const candidateKey = colorFamilyKey(candidateTrimmed);
+
+      for (const fabricTypeId of editColorFabricTypeIds) {
+        const existing = byFabric.get(fabricTypeId);
+        if (existing) {
+          await updateColor({
+            id: existing.id,
+            fabricTypeId,
+            nome: candidateTrimmed.nome,
+            codigo: candidateTrimmed.codigo,
+            hex: candidateTrimmed.hex,
+          });
+        } else {
+          const dupOtherRow = colors.some(
+            (c) =>
+              c.fabricTypeId === fabricTypeId &&
+              colorFamilyKey(c) === candidateKey &&
+              !linkedRows.some((lr) => lr.id === c.id),
+          );
+          if (dupOtherRow) {
+            const nomeTecido = fabricNameById[fabricTypeId] || fabricTypeId;
+            toast({
+              title: "Não foi possível vincular a este tecido",
+              description: `Em "${nomeTecido}" já existe uma cor igual (código "${candidateTrimmed.codigo}", nome "${candidateTrimmed.nome}" e tom ${candidateTrimmed.hex}). Remova o duplicado ou edite o registro existente.`,
+              variant: "destructive",
+            });
+            return;
+          }
+          await addColor({
+            id: generateId(),
+            fabricTypeId,
+            nome: candidateTrimmed.nome,
+            codigo: candidateTrimmed.codigo,
+            hex: candidateTrimmed.hex,
+          });
+        }
+      }
+
+      for (const row of linkedRows) {
+        if (!row.fabricTypeId) continue;
+        if (!editColorFabricTypeIds.includes(row.fabricTypeId)) {
+          await deleteColor(row.id);
+        }
+      }
+
+      setEditColorDialogOpen(false);
+      setEditingColorId(null);
+      setEditingColorLinkedIds([]);
+      setEditColorFabricTypeIds([]);
+      toast({ title: "Cor atualizada" });
+    } catch {
+      toast({ title: "Erro ao atualizar cor", variant: "destructive" });
+    }
+  };
+
+  const toggleColorSelection = (colorId: string) => {
+    setSelectedColorKeys((prev) =>
+      prev.includes(colorId) ? prev.filter((id) => id !== colorId) : [...prev, colorId],
+    );
+  };
+
+  const selectAllFilteredColors = () => {
+    setSelectedColorKeys((prev) => {
+      const ids = new Set(prev);
+      colorFamilies.forEach((family) => ids.add(family.key));
+      return Array.from(ids);
+    });
+  };
+
+  const clearSelection = () => {
+    setSelectedColorKeys([]);
+  };
+
+  const printSelectedColorsCatalog = () => {
+    if (!selectedIndustry) return;
+    if (selectedColorsForPrint.length === 0) {
+      toast({ title: "Selecione pelo menos uma cor para imprimir", variant: "destructive" });
+      return;
+    }
+
+    const escapeHtmlPrint = (value: string) =>
+      value
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+
+    const swatchImageSrc = (hex: string) => {
+      const safeHex = (hex || "#ffffff").replace(/"/g, "");
+      const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='800' height='220'><rect width='100%' height='100%' fill='${safeHex}'/></svg>`;
+      return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+    };
+
+    const linkedFabricsBlockHtml = (family: (typeof selectedColorsForPrint)[number]) => {
+      const lines = family.linkedFabricIds
+        .map((fabricId) => {
+          const linkedFabric = selectedIndustryFabrics.find((item) => item.id === fabricId);
+          if (!linkedFabric) return "";
+          const mcol = markerColorByFabricId[fabricId] || "#666666";
+          const mshape =
+            FABRIC_SHAPE_OPTIONS.find(
+              (item) => item.value === (markerShapeByFabricId[fabricId] || DEFAULT_FABRIC_MARKER_SHAPE),
+            )?.symbol || "●";
+          return `<p class="fabric-line"><span class="shape-marker" style="color:${mcol};">${mshape}</span><span>${escapeHtmlPrint(linkedFabric.nome || "")}</span></p>`;
+        })
+        .filter(Boolean);
+      if (lines.length === 0) {
+        return `<p class="fabric-line muted">Sem tecido vinculado</p>`;
+      }
+      return `<div class="fabrics">${lines.join("")}</div>`;
+    };
+
+    const printableGroups = displayFabrics
+      .map((fabric) => {
+        const familiesForFabric = selectedColorsForPrint.filter((family) => family.primaryFabricId === fabric.id);
+        if (familiesForFabric.length === 0) return "";
+        const marker = markerColorByFabricId[fabric.id] || "#666666";
+        const markerSymbol = FABRIC_SHAPE_OPTIONS.find(
+          (item) => item.value === (markerShapeByFabricId[fabric.id] || DEFAULT_FABRIC_MARKER_SHAPE),
+        )?.symbol || "●";
+        const cards = familiesForFabric
+          .map(
+            (family) => `
+              <article class="card">
+                <img class="swatch-image" src="${swatchImageSrc(family.representative.hex || "#ffffff")}" alt="Amostra ${escapeHtmlPrint(family.representative.nome || "")}" />
+                <div class="meta">
+                  <div class="code">${escapeHtmlPrint(family.representative.codigo || "S/COD")}</div>
+                  <h3>${escapeHtmlPrint(family.representative.nome || "Sem nome")}</h3>
+                  <p class="hex">${escapeHtmlPrint((family.representative.hex || "-").toUpperCase())}</p>
+                  ${linkedFabricsBlockHtml(family)}
+                </div>
+              </article>
+            `,
+          )
+          .join("");
+        return `
+          <section class="group">
+            <h2 class="group-title"><span class="shape-marker" style="color:${marker};">${markerSymbol}</span>${fabric.nome}</h2>
+            <div class="grid">${cards}</div>
+          </section>
+        `;
+      })
+      .filter(Boolean)
+      .join("");
+
+    const title = `Catálogo de Cores - ${selectedIndustry.nome}`;
+    const html = `
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>${title}</title>
+          <style>
+            * { box-sizing: border-box; }
+            body { font-family: Arial, sans-serif; margin: 24px; color: #111827; }
+            h1 { margin: 0 0 8px 0; font-size: 24px; }
+            .subtitle { margin: 0 0 10px 0; color: #4b5563; font-size: 13px; }
+            .group { margin-bottom: 8px; page-break-inside: auto; break-inside: auto; }
+            .group-title { margin: 0 0 6px 0; display: flex; align-items: center; gap: 6px; font-size: 13px; text-transform: uppercase; color: #334155; }
+            .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+            .card { border: 1px solid #e5e7eb; border-radius: 10px; overflow: hidden; page-break-inside: avoid; break-inside: avoid; }
+            .swatch-image { display: block; width: 100%; height: 54px; object-fit: cover; border-bottom: 1px solid #e5e7eb; }
+            .meta { padding: 8px; }
+            .code { display: inline-block; font-family: monospace; font-size: 12px; font-weight: 700; border: 1px solid #d1d5db; border-radius: 999px; padding: 2px 10px; margin-bottom: 6px; }
+            .meta h3 { margin: 0 0 3px 0; font-size: 14px; }
+            .hex { margin: 0 0 6px 0; font-family: monospace; font-size: 11px; color: #374151; text-transform: uppercase; }
+            .fabrics { margin: 0; display: flex; flex-direction: column; gap: 2px; padding-top: 4px; border-top: 1px solid #f3f4f6; }
+            .fabric-line { margin: 0; font-size: 11px; color: #374151; display: flex; align-items: center; gap: 6px; line-height: 1.25; }
+            .fabric-line.muted { color: #9ca3af; font-style: italic; border-top: none; padding-top: 0; }
+            .shape-marker { display: inline-flex; width: 11px; height: 11px; align-items: center; justify-content: center; line-height: 1; font-size: 11px; flex-shrink: 0; }
+            @media print {
+              body { margin: 8mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+              .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+              .group { margin-bottom: 6px; }
+              .group-title { margin-bottom: 4px; }
+              .subtitle { margin-bottom: 6px; }
+            }
+          </style>
+        </head>
+        <body>
+          <h1>${title}</h1>
+          <p class="subtitle">Total selecionado: ${selectedColorsForPrint.length} cor(es)</p>
+          ${printableGroups}
+        </body>
+      </html>
+    `;
+
+    // Impressão via iframe oculto para evitar abrir aba/janela about:blank.
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "0";
+    document.body.appendChild(iframe);
+
+    const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (!iframeDoc || !iframe.contentWindow) {
+      document.body.removeChild(iframe);
+      toast({ title: "Não foi possível iniciar a impressão", variant: "destructive" });
+      return;
+    }
+
+    iframeDoc.open();
+    iframeDoc.write(html);
+    iframeDoc.close();
+
+    setTimeout(() => {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+      setTimeout(() => {
+        if (document.body.contains(iframe)) {
+          document.body.removeChild(iframe);
+        }
+      }, 1000);
+    }, 150);
   };
 
   const renderIndustries = () => (
@@ -161,15 +996,18 @@ const FabricColorsPage = () => {
         <h2 className="text-2xl font-semibold">Indústrias</h2>
         <Dialog open={industryDialogOpen} onOpenChange={setIndustryDialogOpen}>
           <DialogTrigger asChild>
-            <Button><Plus className="mr-2 h-4 w-4" /> Nova Indústria</Button>
+            <Button>
+              <Plus className="mr-2 h-4 w-4" />
+              Nova Indústria
+            </Button>
           </DialogTrigger>
           <DialogContent>
-            <DialogHeader><DialogTitle>Cadastrar Indústria</DialogTitle></DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label>Nome da Indústria</Label>
-                <Input value={newIndustryName} onChange={(e) => setNewIndustryName(e.target.value)} placeholder="Ex: Santanense" />
-              </div>
+            <DialogHeader>
+              <DialogTitle>Cadastrar Indústria</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-2 py-4">
+              <Label>Nome da Indústria</Label>
+              <Input value={newIndustryName} onChange={(e) => setNewIndustryName(e.target.value)} placeholder="Ex: Cedro Têxtil" />
             </div>
             <DialogFooter>
               <Button onClick={handleAddIndustry}>Cadastrar</Button>
@@ -185,222 +1023,511 @@ const FabricColorsPage = () => {
             <p>Nenhuma indústria cadastrada.</p>
           </div>
         ) : (
-          industries.map(industry => (
-            <Card 
-              key={industry.id} 
-              className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all rounded-2xl group overflow-hidden"
-              onClick={() => setSelectedIndustryId(industry.id)}
-            >
-              <CardContent className="p-6 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-primary/10 rounded-xl text-primary group-hover:scale-110 transition-transform">
-                    <Factory className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-lg">{industry.nome}</h3>
-                    <p className="text-sm text-muted-foreground">
-                      {fabricTypes.filter(f => f.industryId === industry.id).length} tecidos
-                    </p>
-                  </div>
-                </div>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive hover:bg-destructive/10 transition-all"
-                  onClick={(e) => handleDeleteIndustryClick(industry.id, e)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </CardContent>
-            </Card>
-          ))
-        )}
-      </div>
-    </div>
-  );
-
-  const renderFabricTypes = () => {
-    const fabrics = fabricTypes.filter(f => f.industryId === selectedIndustryId);
-    return (
-      <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-300">
-        <div className="flex items-center gap-4">
-          <Button variant="outline" size="icon" onClick={() => setSelectedIndustryId(null)}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div className="flex-1">
-            <h2 className="text-2xl font-semibold">Tipos de Tecido</h2>
-            <p className="text-sm text-muted-foreground">Indústria: <span className="font-medium text-foreground">{selectedIndustry?.nome}</span></p>
-          </div>
-          <Dialog open={fabricDialogOpen} onOpenChange={setFabricDialogOpen}>
-            <DialogTrigger asChild>
-              <Button><Plus className="mr-2 h-4 w-4" /> Novo Tecido</Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader><DialogTitle>Cadastrar Tecido</DialogTitle></DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label>Nome do Tecido</Label>
-                  <Input value={newFabricName} onChange={(e) => setNewFabricName(e.target.value)} placeholder="Ex: Oxford" />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button onClick={handleAddFabricType}>Cadastrar</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-          {fabrics.length === 0 ? (
-            <div className="col-span-full py-12 text-center text-muted-foreground border rounded-2xl border-dashed">
-              <Scissors className="mx-auto h-12 w-12 mb-3 opacity-20" />
-              <p>Nenhum tecido cadastrado para esta indústria.</p>
-            </div>
-          ) : (
-            fabrics.map(fabric => (
-              <Card 
-                key={fabric.id} 
+          industries.map((industry) => {
+            const industryFabrics = fabricTypes.filter((fabric) => fabric.industryId === industry.id);
+            const industryColors = colors.filter((color) => industryFabrics.some((fabric) => fabric.id === color.fabricTypeId));
+            return (
+              <Card
+                key={industry.id}
                 className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all rounded-2xl group overflow-hidden"
-                onClick={() => setSelectedFabricTypeId(fabric.id)}
+                onClick={() => setSelectedIndustryId(industry.id)}
               >
                 <CardContent className="p-6 flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <div className="p-3 bg-secondary rounded-xl text-secondary-foreground group-hover:scale-110 transition-transform">
-                      <Scissors className="h-6 w-6" />
+                    <div className="p-3 bg-primary/10 rounded-xl text-primary">
+                      <Factory className="h-6 w-6" />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-lg">{fabric.nome}</h3>
+                      <h3 className="font-semibold text-lg">{industry.nome}</h3>
                       <p className="text-sm text-muted-foreground">
-                        {colors.filter(c => c.fabricTypeId === fabric.id).length} cores
+                        {industryFabrics.length} tecidos · {industryColors.length} cores
                       </p>
                     </div>
                   </div>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     className="opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive hover:bg-destructive/10 transition-all"
-                    onClick={(e) => handleDeleteFabricClick(fabric.id, e)}
+                    onClick={(e) => handleDeleteIndustryClick(industry.id, e)}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </CardContent>
               </Card>
-            ))
-          )}
-        </div>
+            );
+          })
+        )}
       </div>
-    );
-  };
+    </div>
+  );
 
-  const renderColors = () => {
-    const fabricColors = colors.filter(c => c.fabricTypeId === selectedFabricTypeId);
-    return (
-      <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-300">
-        <div className="flex items-center gap-4">
-          <Button variant="outline" size="icon" onClick={() => setSelectedFabricTypeId(null)}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div className="flex-1">
-            <h2 className="text-2xl font-semibold">Cores e Códigos</h2>
-            <p className="text-sm text-muted-foreground">Tecido: <span className="font-medium text-foreground">{selectedFabricType?.nome}</span></p>
-          </div>
-          <Dialog open={colorDialogOpen} onOpenChange={setColorDialogOpen}>
+  const renderIndustryPalette = () => (
+    <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-300">
+      <div className="flex items-center gap-4">
+        <Button variant="outline" size="icon" onClick={() => setSelectedIndustryId(null)}>
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <div className="flex-1">
+          <h2 className="text-2xl font-semibold">Cores da Indústria</h2>
+          <p className="text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">{selectedIndustry?.nome}</span> · por tipo de tecido
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Dialog open={fabricDialogOpen} onOpenChange={setFabricDialogOpen}>
             <DialogTrigger asChild>
-              <Button><Plus className="mr-2 h-4 w-4" /> Nova Cor</Button>
+              <Button variant="outline">
+                <Plus className="mr-2 h-4 w-4" />
+                Nova Legenda
+              </Button>
             </DialogTrigger>
             <DialogContent>
-              <DialogHeader><DialogTitle>Cadastrar Cor</DialogTitle></DialogHeader>
+              <DialogHeader>
+                <DialogTitle>Cadastrar Legenda de Tecido</DialogTitle>
+              </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <Label>Código Exclusivo</Label>
-                  <Input value={newColor.codigo} onChange={(e) => setNewColor({...newColor, codigo: e.target.value})} placeholder="Ex: OX-001" />
+                  <Label>Nome da legenda / tecido</Label>
+                  <Input value={newFabricName} onChange={(e) => setNewFabricName(e.target.value)} placeholder="Ex: Cedromix 8 oz II" />
                 </div>
                 <div className="space-y-2">
-                  <Label>Nome da Cor</Label>
-                  <Input value={newColor.nome} onChange={(e) => setNewColor({...newColor, nome: e.target.value})} placeholder="Ex: Azul Marinho" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Tom Hexadecimal</Label>
+                  <Label>Cor da bolinha de referência</Label>
                   <div className="flex gap-3">
-                    <Input type="color" value={newColor.hex} onChange={(e) => setNewColor({...newColor, hex: e.target.value})} className="h-10 w-20 p-1 cursor-pointer" />
-                    <Input value={newColor.hex} onChange={(e) => setNewColor({...newColor, hex: e.target.value})} className="font-mono uppercase" />
+                    <Input
+                      type="color"
+                      value={newFabricMarkerColor}
+                      onChange={(e) => setNewFabricMarkerColor(e.target.value)}
+                      className="h-10 w-20 p-1 cursor-pointer"
+                    />
+                    <Input
+                      value={newFabricMarkerColor}
+                      onChange={(e) => setNewFabricMarkerColor(e.target.value)}
+                      className="font-mono uppercase"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Forma geométrica da referência</Label>
+                  <select
+                    className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                    value={newFabricMarkerShape}
+                    onChange={(e) => setNewFabricMarkerShape(e.target.value as FabricMarkerShape)}
+                  >
+                    {FABRIC_SHAPE_OPTIONS.map((shape) => (
+                      <option key={shape.value} value={shape.value}>
+                        {shape.symbol} {shape.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Essa legenda aparecerá na lista lateral e será usada para identificar visualmente os tecidos nas cores.
+                </p>
+              </div>
+              <DialogFooter>
+                <Button onClick={handleAddFabricType}>Cadastrar Legenda</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog
+            open={colorDialogOpen}
+            onOpenChange={(open) => {
+              setColorDialogOpen(open);
+              if (!open) {
+                setColorDialogError(null);
+                setIsSavingNewColor(false);
+              }
+            }}
+          >
+            <DialogTrigger asChild>
+              <Button type="button">
+                <Plus className="mr-2 h-4 w-4" />
+                Nova Cor
+              </Button>
+            </DialogTrigger>
+            <DialogContent aria-busy={isSavingNewColor}>
+              <DialogHeader>
+                <DialogTitle>Cadastrar Cor</DialogTitle>
+              </DialogHeader>
+              {colorDialogError ? (
+                <div
+                  role="alert"
+                  className="rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+                >
+                  {colorDialogError}
+                </div>
+              ) : null}
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label>Tipos de tecido</Label>
+                  <div className="max-h-36 overflow-y-auto rounded-md border p-2 space-y-2">
+                    {selectedIndustryFabrics.map((fabric) => (
+                      <label key={fabric.id} className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={newColorFabricTypeIds.includes(fabric.id)}
+                          onChange={(e) => {
+                            setColorDialogError(null);
+                            setNewColorFabricTypeIds((prev) =>
+                              e.target.checked ? Array.from(new Set([...prev, fabric.id])) : prev.filter((id) => id !== fabric.id),
+                            );
+                          }}
+                        />
+                        <span>{fabric.nome}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Código</Label>
+                  <Input
+                    value={newColor.codigo}
+                    onChange={(e) => {
+                      setColorDialogError(null);
+                      setNewColor({ ...newColor, codigo: e.target.value });
+                    }}
+                    placeholder="Ex: CED-001"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Nome da cor</Label>
+                  <Input
+                    value={newColor.nome}
+                    onChange={(e) => {
+                      setColorDialogError(null);
+                      setNewColor({ ...newColor, nome: e.target.value });
+                    }}
+                    placeholder="Ex: Azul Royal"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Hex</Label>
+                  <div className="flex gap-3">
+                    <Input
+                      type="color"
+                      value={newColor.hex}
+                      onChange={(e) => {
+                        setColorDialogError(null);
+                        setNewColor({ ...newColor, hex: e.target.value });
+                      }}
+                      className="h-10 w-20 p-1 cursor-pointer"
+                    />
+                    <Input
+                      value={newColor.hex}
+                      onChange={(e) => {
+                        setColorDialogError(null);
+                        setNewColor({ ...newColor, hex: e.target.value });
+                      }}
+                      className="font-mono uppercase"
+                    />
                   </div>
                 </div>
               </div>
               <DialogFooter>
-                <Button onClick={handleAddColor}>Cadastrar Cor</Button>
+                <Button type="button" disabled={isSavingNewColor} onClick={() => void handleAddColor()}>
+                  {isSavingNewColor ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                      Salvando…
+                    </>
+                  ) : (
+                    "Cadastrar Cor"
+                  )}
+                </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
         </div>
+      </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {fabricColors.length === 0 ? (
-            <div className="col-span-full py-12 text-center text-muted-foreground border rounded-2xl border-dashed">
-              <Palette className="mx-auto h-12 w-12 mb-3 opacity-20" />
-              <p>Nenhuma cor cadastrada para este tecido.</p>
+      <div className="grid grid-cols-1 lg:grid-cols-[350px_1fr] gap-6">
+        <Card className="rounded-2xl">
+          <CardContent className="p-5 space-y-4">
+            <div>
+              <h3 className="font-semibold">Legenda dos tecidos</h3>
+              <p className="text-xs text-muted-foreground">Bolinha de referência + cores usadas em cada tecido.</p>
             </div>
-          ) : (
-            fabricColors.map(color => (
-              <Card key={color.id} className="rounded-2xl group overflow-hidden border-2 transition-all hover:border-primary/30">
-                <div className="h-24 w-full transition-transform group-hover:scale-105" style={{ backgroundColor: color.hex }} />
-                <CardContent className="p-4 relative bg-card">
-                  <div className="absolute -top-6 right-4 bg-background px-3 py-1 rounded-full border shadow-sm font-mono text-xs font-bold shadow-sm">
-                    {color.codigo || "S/ COD"}
-                  </div>
-                  <div className="flex justify-between items-start mt-2">
-                    <div>
-                      <h3 className="font-semibold">{color.nome}</h3>
-                      <p className="text-xs text-muted-foreground font-mono uppercase">{color.hex}</p>
-                    </div>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                      onClick={(e) => handleDeleteColorClick(color.id, e)}
+            <div className="space-y-2">
+              <Label>Pesquisar tecido</Label>
+              <Input
+                value={fabricSearch}
+                onChange={(e) => setFabricSearch(e.target.value)}
+                placeholder="Ex: Cedrofil, Work, Mix..."
+              />
+            </div>
+
+            {visibleLegendFabrics.length === 0 ? (
+              <div className="py-8 text-center text-sm text-muted-foreground border rounded-xl border-dashed">
+                Nenhum tecido encontrado para essa busca.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {visibleLegendFabrics.map((fabric) => {
+                  const fabricColors = colors.filter((color) => color.fabricTypeId === fabric.id);
+                  return (
+                    <div
+                      key={fabric.id}
+                      className={`rounded-xl border p-3 space-y-2 cursor-pointer transition-colors ${
+                        selectedLegendFabricIds.includes(fabric.id) ? "border-primary bg-primary/5" : ""
+                      }`}
+                      onClick={() =>
+                        setSelectedLegendFabricIds((prev) =>
+                          prev.includes(fabric.id) ? prev.filter((id) => id !== fabric.id) : [...prev, fabric.id],
+                        )
+                      }
                     >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          {renderFabricMarker(fabric.id, "text-sm shrink-0")}
+                          <span className="text-sm font-medium truncate">{fabric.nome}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              startEditFabric(fabric.id);
+                            }}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteFabricClick(fabric.id);
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      {fabricColors.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">Sem cores cadastradas.</p>
+                      ) : (
+                        <div className="space-y-1">
+                          <p className="text-xs text-muted-foreground leading-snug">
+                            {(expandedFabricLegendIds.includes(fabric.id)
+                              ? fabricColors
+                              : fabricColors.slice(0, LEGEND_CARD_PREVIEW_COUNT)
+                            )
+                              .map((color) => `${color.codigo || "S/COD"} - ${color.nome}`)
+                              .join(" • ")}
+                            {!expandedFabricLegendIds.includes(fabric.id) &&
+                            fabricColors.length > LEGEND_CARD_PREVIEW_COUNT ? (
+                              <span className="text-muted-foreground/85">
+                                {" "}
+                                · … +{fabricColors.length - LEGEND_CARD_PREVIEW_COUNT}{" "}
+                                {fabricColors.length - LEGEND_CARD_PREVIEW_COUNT === 1 ? "cor" : "cores"}
+                              </span>
+                            ) : null}
+                          </p>
+                          {fabricColors.length > LEGEND_CARD_PREVIEW_COUNT ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-xs text-primary hover:text-primary"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setExpandedFabricLegendIds((prev) =>
+                                  prev.includes(fabric.id)
+                                    ? prev.filter((id) => id !== fabric.id)
+                                    : [...prev, fabric.id],
+                                );
+                              }}
+                            >
+                              {expandedFabricLegendIds.includes(fabric.id)
+                                ? "Recolher lista"
+                                : `Expandir lista (${fabricColors.length} cores)`}
+                            </Button>
+                          ) : null}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <div className="space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="font-semibold text-lg">Cores cadastradas</h3>
+            <p className="text-sm text-muted-foreground">
+              {filteredIndustryColors.length} de {selectedIndustryColors.length} cores
+            </p>
+          </div>
+          {selectedLegendFabricIds.length > 0 ? (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span>
+                Filtro por tecido(s):{" "}
+                <strong className="text-foreground">
+                  {selectedLegendFabricIds
+                    .map((id) => selectedIndustryFabrics.find((fabric) => fabric.id === id)?.nome)
+                    .filter(Boolean)
+                    .join(", ")}
+                </strong>
+              </span>
+              <Button variant="ghost" size="sm" className="h-6 px-2" onClick={() => setSelectedLegendFabricIds([])}>
+                Limpar filtro
+              </Button>
+            </div>
+          ) : null}
+          <div className="space-y-2">
+            <Label>Pesquisar por código da cor</Label>
+            <Input
+              value={colorSearch}
+              onChange={(e) => setColorSearch(e.target.value)}
+              placeholder="Ex: 5412, CED-001, Azul Royal, Cedrofil..."
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" onClick={selectAllFilteredColors}>
+              Selecionar filtradas
+            </Button>
+            <Button variant="outline" size="sm" onClick={clearSelection}>
+              Limpar seleção
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => setBulkDeleteColorsOpen(true)}
+              disabled={selectedColorKeys.length === 0 || bulkDeleting}
+            >
+              Excluir selecionadas ({selectedColorKeys.length})
+            </Button>
+            <Button size="sm" onClick={printSelectedColorsCatalog}>
+              <Printer className="mr-2 h-4 w-4" />
+              Imprimir catálogo ({selectedColorsForPrint.length})
+            </Button>
+          </div>
+          {bulkDeleting ? (
+            <div className="space-y-2 rounded-lg border p-3 bg-muted/20">
+              <div className="flex items-center justify-between text-sm">
+                <span>Excluindo cores selecionadas...</span>
+                <span className="font-medium">{bulkDeleteDone} / {bulkDeleteTotal}</span>
+              </div>
+              <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                <div
+                  className="h-full bg-destructive transition-all duration-200"
+                  style={{ width: `${bulkDeleteTotal > 0 ? (bulkDeleteDone / bulkDeleteTotal) * 100 : 0}%` }}
+                />
+              </div>
+            </div>
+          ) : null}
+
+          <div className="space-y-6">
+            {filteredIndustryColors.length === 0 ? (
+              <div className="col-span-full py-12 text-center text-muted-foreground border rounded-2xl border-dashed">
+                <Palette className="mx-auto h-12 w-12 mb-3 opacity-20" />
+                <p>Nenhuma cor encontrada para essa busca.</p>
+              </div>
+            ) : (
+              groupedFilteredColors.map(({ fabric, families: fabricFamilies }) => (
+                <div key={fabric.id} className="space-y-3">
+                  <div className="flex items-center gap-2 pb-2 border-b">
+                    {renderFabricMarker(fabric.id, "text-sm")}
+                    <h4 className="font-semibold">{fabric.nome}</h4>
+                    <span className="text-xs text-muted-foreground">({fabricFamilies.length} cores)</span>
                   </div>
-                </CardContent>
-              </Card>
-            ))
-          )}
+
+                  {fabricFamilies.length === 0 ? (
+                    <div className="py-6 text-sm text-muted-foreground border rounded-xl border-dashed text-center">
+                      Nenhuma cor para este tecido com o filtro atual.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                      {fabricFamilies.map((family) => {
+                        const color = family.representative;
+                        const isSelected = selectedColorKeys.includes(family.key);
+                        return (
+                          <Card
+                            key={family.key}
+                            className={`rounded-2xl overflow-hidden border-2 transition-all hover:border-primary/30 ${isSelected ? "border-primary" : ""}`}
+                          >
+                            <div className="h-24 w-full" style={{ backgroundColor: color.hex }} />
+                            <CardContent className="p-4 relative">
+                              <div className="absolute -top-6 right-4 bg-background px-3 py-1 rounded-full border shadow-sm font-mono text-xs font-bold">
+                                {color.codigo || "S/ COD"}
+                              </div>
+                              <div className="flex justify-between items-start gap-2 mt-2">
+                                <div className="min-w-0">
+                                  <h3 className="font-semibold truncate">{color.nome}</h3>
+                                  <p className="text-xs text-muted-foreground font-mono uppercase">{color.hex}</p>
+                                  <div className="text-xs text-muted-foreground flex items-center gap-2 mt-1 flex-wrap">
+                                    {family.linkedFabricIds.map((fabricId) => {
+                                      const linkedFabric = selectedIndustryFabrics.find((item) => item.id === fabricId);
+                                      if (!linkedFabric) return null;
+                                      return (
+                                        <span key={fabricId} className="inline-flex items-center gap-1">
+                                          {renderFabricMarker(fabricId, "text-xs")}
+                                          <span className="truncate">{linkedFabric.nome}</span>
+                                        </span>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => toggleColorSelection(family.key)}
+                                  className="h-4 w-4 mt-1 accent-primary"
+                                  title="Selecionar para impressão"
+                                />
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => startEditColor(color.id)}
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                  onClick={() => setColorToDeleteKey(family.key)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </div>
-    );
-  };
+    </div>
+  );
 
   return (
     <div className="mx-auto max-w-6xl space-y-8 pb-12">
-      <div className="flex items-center gap-4 border-b pb-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Tecido/Cores</h1>
-          <p className="text-muted-foreground">Gerencie suas indústrias, tecidos e cores de forma hierárquica.</p>
-        </div>
-      </div>
+      <div className="min-h-[400px]">{!selectedIndustryId ? renderIndustries() : renderIndustryPalette()}</div>
 
-      <div className="min-h-[400px]">
-        {!selectedIndustryId && renderIndustries()}
-        {selectedIndustryId && !selectedFabricTypeId && renderFabricTypes()}
-        {selectedFabricTypeId && renderColors()}
-      </div>
-
-      {/* Delete Confirmation Dialogs */}
       <AlertDialog open={!!industryToDelete} onOpenChange={(open) => !open && setIndustryToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir Indústria</AlertDialogTitle>
-            <AlertDialogDescription>
-              Tem certeza que deseja excluir esta indústria? Esta ação não pode ser desfeita.
-            </AlertDialogDescription>
+            <AlertDialogDescription>Tem certeza que deseja excluir esta indústria?</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDeleteIndustry} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
+            <AlertDialogAction onClick={confirmDeleteIndustry} className="bg-destructive hover:bg-destructive/90">
+              Excluir
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -408,32 +1535,143 @@ const FabricColorsPage = () => {
       <AlertDialog open={!!fabricToDelete} onOpenChange={(open) => !open && setFabricToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir Tecido</AlertDialogTitle>
-            <AlertDialogDescription>
-              Tem certeza que deseja excluir este tecido? Esta ação não pode ser desfeita.
-            </AlertDialogDescription>
+            <AlertDialogTitle>Excluir Tipo de Tecido</AlertDialogTitle>
+            <AlertDialogDescription>Tem certeza que deseja excluir este tipo de tecido?</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDeleteFabric} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
+            <AlertDialogAction onClick={confirmDeleteFabric} className="bg-destructive hover:bg-destructive/90">
+              Excluir
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={!!colorToDelete} onOpenChange={(open) => !open && setColorToDelete(null)}>
+      <AlertDialog open={!!colorToDeleteKey} onOpenChange={(open) => !open && setColorToDeleteKey(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir Cor</AlertDialogTitle>
+            <AlertDialogDescription>Tem certeza que deseja excluir esta cor?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteColor} className="bg-destructive hover:bg-destructive/90">
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={bulkDeleteColorsOpen} onOpenChange={setBulkDeleteColorsOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir Cores Selecionadas</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja excluir esta cor do sistema?
+              Tem certeza que deseja excluir {selectedColorKeys.length} cor(es) selecionada(s)? Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDeleteColor} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
+            <AlertDialogAction
+              onClick={confirmDeleteSelectedColors}
+              className="bg-destructive hover:bg-destructive/90"
+              disabled={bulkDeleting}
+            >
+              Excluir selecionadas
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={editColorDialogOpen} onOpenChange={setEditColorDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Cor</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Tipo de tecido</Label>
+              <div className="max-h-36 overflow-y-auto rounded-md border p-2 space-y-2">
+                {selectedIndustryFabrics.map((fabric) => (
+                  <label key={fabric.id} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={editColorFabricTypeIds.includes(fabric.id)}
+                      onChange={(e) =>
+                        setEditColorFabricTypeIds((prev) =>
+                          e.target.checked ? Array.from(new Set([...prev, fabric.id])) : prev.filter((id) => id !== fabric.id),
+                        )
+                      }
+                    />
+                    <span>{fabric.nome}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Código</Label>
+              <Input value={editColor.codigo} onChange={(e) => setEditColor({ ...editColor, codigo: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Nome da cor</Label>
+              <Input value={editColor.nome} onChange={(e) => setEditColor({ ...editColor, nome: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Hex</Label>
+              <div className="flex gap-3">
+                <Input type="color" value={editColor.hex} onChange={(e) => setEditColor({ ...editColor, hex: e.target.value })} className="h-10 w-20 p-1 cursor-pointer" />
+                <Input value={editColor.hex} onChange={(e) => setEditColor({ ...editColor, hex: e.target.value })} className="font-mono uppercase" />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={handleUpdateColor}>Salvar Alterações</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editFabricDialogOpen} onOpenChange={setEditFabricDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Tipo de Tecido</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label>Nome do tecido</Label>
+            <Input value={editFabricName} onChange={(e) => setEditFabricName(e.target.value)} />
+            <Label className="pt-2">Cor da bolinha de referência</Label>
+            <div className="flex gap-3">
+              <Input
+                type="color"
+                value={editFabricMarkerColor}
+                onChange={(e) => setEditFabricMarkerColor(e.target.value)}
+                className="h-10 w-20 p-1 cursor-pointer"
+              />
+              <Input
+                value={editFabricMarkerColor}
+                onChange={(e) => setEditFabricMarkerColor(e.target.value)}
+                className="font-mono uppercase"
+              />
+            </div>
+            <Label className="pt-2">Forma geométrica da referência</Label>
+            <select
+              className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+              value={editFabricMarkerShape}
+              onChange={(e) => setEditFabricMarkerShape(e.target.value as FabricMarkerShape)}
+            >
+              {FABRIC_SHAPE_OPTIONS.map((shape) => (
+                <option key={shape.value} value={shape.value}>
+                  {shape.symbol} {shape.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <DialogFooter>
+            <Button onClick={handleUpdateFabric} disabled={isSavingFabric}>
+              {isSavingFabric ? "Salvando..." : "Salvar Alterações"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

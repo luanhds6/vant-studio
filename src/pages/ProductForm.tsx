@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useDropzone } from "react-dropzone";
 import { toast } from "@/hooks/use-toast";
-import { ArrowLeft, Plus, X, Upload, Image as ImageIcon } from "lucide-react";
+import { ArrowLeft, Plus, X, Upload, Image as ImageIcon, ChevronDown, ChevronRight } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Factory } from "lucide-react";
 
@@ -66,6 +66,13 @@ const ProductForm = () => {
   const [newTamanho, setNewTamanho] = useState("");
   const [newCor, setNewCor] = useState<{ nome: string; hex: string }>({ nome: "", hex: "#f97316" });
   const [newDetalhe, setNewDetalhe] = useState("");
+  const [expandedIndustryIds, setExpandedIndustryIds] = useState<string[]>([]);
+
+  const toggleIndustryExpanded = (industryId: string) => {
+    setExpandedIndustryIds((prev) =>
+      prev.includes(industryId) ? prev.filter((id) => id !== industryId) : [...prev, industryId],
+    );
+  };
 
   useEffect(() => {
     if (!hospitalId || !getHospital(hospitalId)) {
@@ -325,39 +332,54 @@ const ProductForm = () => {
                 
                 return (
                   <div key={ind.id} className="space-y-3 p-4 rounded-lg border bg-muted/10">
-                    <h4 className="font-semibold text-sm text-primary flex items-center gap-2">
-                      <Factory className="h-4 w-4" /> {ind.nome}
-                    </h4>
-                    {indFabrics.map(fab => {
-                      const fabColors = availableColors.filter(c => c.fabricTypeId === fab.id);
-                      if (fabColors.length === 0) return null;
-                      return (
-                        <div key={fab.id} className="space-y-2 pl-4 border-l-2 border-primary/20">
-                          <Label className="text-xs font-medium text-muted-foreground">{fab.nome}</Label>
-                          <div className="flex flex-wrap gap-2">
-                            {fabColors.map((c) => (
-                              <button
-                                key={c.id}
-                                type="button"
-                                onClick={() => {
-                                  if (!form.cores.some((x) => x.hex === c.hex)) {
-                                    updateField("cores", [...form.cores, { id: generateId(), nome: `${c.nome} ${c.codigo ? `(${c.codigo})` : ''}`, hex: c.hex }]);
-                                    toast({ title: `Cor ${c.nome} adicionada` });
-                                  } else {
-                                    toast({ title: "Cor já adicionada", variant: "default" });
-                                  }
-                                }}
-                                className="group flex items-center gap-2 px-2.5 py-1.5 rounded-md border bg-card hover:bg-accent hover:border-primary/50 transition-all text-xs font-medium shadow-sm"
-                              >
-                                <div className="w-3 h-3 rounded-full border shadow-sm group-hover:scale-110 transition-transform" style={{ backgroundColor: c.hex }} />
-                                {c.nome}
-                                {c.codigo && <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded ml-1">{c.codigo}</span>}
-                              </button>
-                            ))}
+                    <button
+                      type="button"
+                      className="w-full flex items-center justify-between text-left"
+                      onClick={() => toggleIndustryExpanded(ind.id)}
+                    >
+                      <h4 className="font-semibold text-sm text-primary flex items-center gap-2">
+                        <Factory className="h-4 w-4" /> {ind.nome}
+                      </h4>
+                      {expandedIndustryIds.includes(ind.id) ? (
+                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </button>
+                    {expandedIndustryIds.includes(ind.id) ? (
+                      indFabrics.map(fab => {
+                        const fabColors = availableColors.filter(c => c.fabricTypeId === fab.id);
+                        if (fabColors.length === 0) return null;
+                        return (
+                          <div key={fab.id} className="space-y-2 pl-4 border-l-2 border-primary/20">
+                            <Label className="text-xs font-medium text-muted-foreground">{fab.nome}</Label>
+                            <div className="flex flex-wrap gap-2">
+                              {fabColors.map((c) => (
+                                <button
+                                  key={c.id}
+                                  type="button"
+                                  onClick={() => {
+                                    if (!form.cores.some((x) => x.hex === c.hex)) {
+                                      updateField("cores", [...form.cores, { id: generateId(), nome: `${c.nome} ${c.codigo ? `(${c.codigo})` : ''}`, hex: c.hex }]);
+                                      toast({ title: `Cor ${c.nome} adicionada` });
+                                    } else {
+                                      toast({ title: "Cor já adicionada", variant: "default" });
+                                    }
+                                  }}
+                                  className="group flex items-center gap-2 px-2.5 py-1.5 rounded-md border bg-card hover:bg-accent hover:border-primary/50 transition-all text-xs font-medium shadow-sm"
+                                >
+                                  <div className="w-3 h-3 rounded-full border shadow-sm group-hover:scale-110 transition-transform" style={{ backgroundColor: c.hex }} />
+                                  {c.nome}
+                                  {c.codigo && <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded ml-1">{c.codigo}</span>}
+                                </button>
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })
+                    ) : (
+                      <p className="text-xs text-muted-foreground">Clique para expandir e visualizar as cores.</p>
+                    )}
                   </div>
                 );
               })}
