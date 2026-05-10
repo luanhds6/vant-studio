@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactNode } from "react";
 import { Product, CompanySettings } from "@/types/Product";
+import { getFabricShapeSymbol, getFabricMarkerColor } from "@/lib/shapes";
 
 export type CatalogOrientation = "portrait" | "landscape";
 
@@ -182,9 +183,15 @@ export const CatalogPage = ({
                     {product.cores.map((c) => (
                       <div key={c.id} style={{ display: "flex", alignItems: "center", gap: "1.5mm" }}>
                         <div style={{
-                          width: "4.5mm", height: "4.5mm", borderRadius: "50%",
-                          background: c.hex, border: "1px solid #999999",
-                        }} />
+                          color: getFabricMarkerColor(c.fabricTypeId),
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: "16px",
+                          lineHeight: 1
+                        }}>
+                          {getFabricShapeSymbol(c.fabricTypeId)}
+                        </div>
                         <span style={{ fontSize: "9px", fontWeight: 600, color: "#111111" }}>{c.nome}</span>
                       </div>
                     ))}
@@ -431,9 +438,15 @@ function getLandscapeInfoBlocks(product: Product): { id: string; node: ReactNode
             {product.cores.map((c) => (
               <div key={c.id} style={{ display: "flex", alignItems: "center", gap: "1mm" }}>
                 <div style={{
-                  width: "3.5mm", height: "3.5mm", borderRadius: "50%",
-                  background: c.hex, border: "1px solid #888888",
-                }} />
+                  color: getFabricMarkerColor(c.fabricTypeId),
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "14px",
+                  lineHeight: 1
+                }}>
+                  {getFabricShapeSymbol(c.fabricTypeId)}
+                </div>
                 <span style={{ fontSize: "8px", fontWeight: 600, color: "#111111" }}>{c.nome}</span>
               </div>
             ))}

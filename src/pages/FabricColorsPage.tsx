@@ -19,24 +19,19 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import type { BaseColor } from "@/types/Product";
+import { 
+  FabricMarkerShape, 
+  FABRIC_SHAPE_OPTIONS, 
+  FABRIC_MARKER_SHAPES_STORAGE_KEY, 
+  getFabricMarkerColor, 
+  getFabricShapeSymbol,
+  getFabricShapeValue
+} from "@/lib/shapes";
 
 const generateId = () => crypto.randomUUID();
 const FABRIC_MARKER_COLORS = ["#2563eb", "#16a34a", "#d97706", "#9333ea", "#dc2626", "#0891b2", "#7c3aed"];
 const FABRIC_MARKER_STORAGE_KEY = "fabric-marker-colors-v1";
-const FABRIC_MARKER_SHAPES_STORAGE_KEY = "fabric-marker-shapes-v1";
-type FabricMarkerShape = "circle" | "circle-outline" | "square" | "square-outline" | "triangle" | "triangle-down" | "diamond" | "star" | "hexagon";
 const DEFAULT_FABRIC_MARKER_SHAPE: FabricMarkerShape = "circle";
-const FABRIC_SHAPE_OPTIONS: { value: FabricMarkerShape; label: string; symbol: string }[] = [
-  { value: "circle", label: "Círculo", symbol: "●" },
-  { value: "circle-outline", label: "Círculo vazado", symbol: "○" },
-  { value: "square", label: "Quadrado", symbol: "■" },
-  { value: "square-outline", label: "Quadrado vazado", symbol: "□" },
-  { value: "triangle", label: "Triângulo", symbol: "▲" },
-  { value: "triangle-down", label: "Triângulo invertido", symbol: "▼" },
-  { value: "diamond", label: "Losango", symbol: "◆" },
-  { value: "star", label: "Estrela", symbol: "★" },
-  { value: "hexagon", label: "Hexágono", symbol: "⬢" },
-];
 
 /** Normaliza hex para comparação (evita duplicata “fantasma” entre #020203 e 020203). */
 const normalizeHexForKey = (hex: string) => {
@@ -295,7 +290,17 @@ const FabricColorsPage = () => {
   const markerColorByFabricId = useMemo(
     () =>
       selectedIndustryFabrics.reduce<Record<string, string>>((acc, fabric, index) => {
-        acc[fabric.id] = fabricMarkerOverrides[fabric.id] || FABRIC_MARKER_COLORS[index % FABRIC_MARKER_COLORS.length];
+        const stored = fabricMarkerOverrides[fabric.id];
+        if (stored) {
+          acc[fabric.id] = stored;
+        } else {
+          const defaultColor = getFabricMarkerColor(fabric.id);
+          if (defaultColor !== "#000000") {
+            acc[fabric.id] = defaultColor;
+          } else {
+            acc[fabric.id] = FABRIC_MARKER_COLORS[index % FABRIC_MARKER_COLORS.length];
+          }
+        }
         return acc;
       }, {}),
     [selectedIndustryFabrics, fabricMarkerOverrides],
@@ -303,7 +308,7 @@ const FabricColorsPage = () => {
   const markerShapeByFabricId = useMemo(
     () =>
       selectedIndustryFabrics.reduce<Record<string, FabricMarkerShape>>((acc, fabric) => {
-        acc[fabric.id] = fabricMarkerShapeOverrides[fabric.id] || DEFAULT_FABRIC_MARKER_SHAPE;
+        acc[fabric.id] = fabricMarkerShapeOverrides[fabric.id] || getFabricShapeValue(fabric.id);
         return acc;
       }, {}),
     [selectedIndustryFabrics, fabricMarkerShapeOverrides],
@@ -546,13 +551,14 @@ const FabricColorsPage = () => {
     setFabricToDelete(fabricId);
   };
 
-  const startEditFabric = (fabricId: string) => {
-    const fabric = selectedIndustryFabrics.find((item) => item.id === fabricId);
-    if (!fabric) return;
-    setEditingFabricId(fabric.id);
-    setEditFabricName(fabric.nome);
-    setEditFabricMarkerColor(markerColorByFabricId[fabric.id] || "#2563eb");
-    setEditFabricMarkerShape(markerShapeByFabricId[fabric.id] || DEFAULT_FABRIC_MARKER_SHAPE);
+  const startEditFabric = (fabricId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const f = fabricTypes.find((x) => x.id === fabricId);
+    if (!f) return;
+    setEditingFabricId(f.id);
+    setEditFabricName(f.nome);
+    setEditFabricMarkerColor(markerColorByFabricId[f.id] || "#2563eb");
+    setEditFabricMarkerShape(markerShapeByFabricId[f.id] || "circle");
     setEditFabricDialogOpen(true);
   };
 

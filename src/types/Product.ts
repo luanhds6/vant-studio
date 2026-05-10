@@ -9,6 +9,7 @@ export interface ProductColor {
   id: string;
   nome: string;
   hex: string;
+  fabricTypeId?: string;
 }
 
 export interface FabricIndustry {

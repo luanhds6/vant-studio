@@ -15,6 +15,7 @@ import { toast } from "@/hooks/use-toast";
 import { ArrowLeft, Plus, X, Upload, Image as ImageIcon, ChevronDown, ChevronRight } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Factory } from "lucide-react";
+import { getFabricShapeSymbol, getFabricMarkerColor } from "@/lib/shapes";
 
 const generateId = () => crypto.randomUUID();
 
@@ -360,7 +361,7 @@ const ProductForm = () => {
                                   type="button"
                                   onClick={() => {
                                     if (!form.cores.some((x) => x.hex === c.hex)) {
-                                      updateField("cores", [...form.cores, { id: generateId(), nome: `${c.nome} ${c.codigo ? `(${c.codigo})` : ''}`, hex: c.hex }]);
+                                      updateField("cores", [...form.cores, { id: generateId(), nome: `${c.nome} ${c.codigo ? `(${c.codigo})` : ''}`, hex: c.hex, fabricTypeId: c.fabricTypeId }]);
                                       toast({ title: `Cor ${c.nome} adicionada` });
                                     } else {
                                       toast({ title: "Cor já adicionada", variant: "default" });
@@ -368,7 +369,7 @@ const ProductForm = () => {
                                   }}
                                   className="group flex items-center gap-2 px-2.5 py-1.5 rounded-md border bg-card hover:bg-accent hover:border-primary/50 transition-all text-xs font-medium shadow-sm"
                                 >
-                                  <div className="w-3 h-3 rounded-full border shadow-sm group-hover:scale-110 transition-transform" style={{ backgroundColor: c.hex }} />
+                                  <span style={{ color: getFabricMarkerColor(c.fabricTypeId) }}>{getFabricShapeSymbol(c.fabricTypeId)}</span>
                                   {c.nome}
                                   {c.codigo && <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded ml-1">{c.codigo}</span>}
                                 </button>
@@ -400,7 +401,7 @@ const ProductForm = () => {
           <div className="flex flex-wrap gap-2">
             {form.cores.map((c) => (
               <span key={c.id} className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-secondary text-secondary-foreground text-sm border shadow-sm">
-                <div className="w-4 h-4 rounded-full border" style={{ backgroundColor: c.hex }} />
+                <span style={{ color: getFabricMarkerColor(c.fabricTypeId) }}>{getFabricShapeSymbol(c.fabricTypeId)}</span>
                 {c.nome}
                 <button onClick={() => updateField("cores", form.cores.filter((x) => x.id !== c.id))} className="ml-1 p-0.5 rounded-full hover:bg-destructive hover:text-destructive-foreground transition-colors">
                   <X className="h-3 w-3" />
