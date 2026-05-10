@@ -23,6 +23,8 @@ const SettingsPage = lazy(() => import("./pages/Settings"));
 const ProfilePage = lazy(() => import("./pages/Profile"));
 const FabricColorsPage = lazy(() => import("./pages/FabricColorsPage"));
 const ProductCadastroPage = lazy(() => import("./pages/ProductCadastroPage"));
+const ContractsPage = lazy(() => import("./pages/ContractsPage"));
+const ContractSignPage = lazy(() => import("./pages/ContractSignPage"));
 
 function RouteFallback() {
   return (
@@ -145,6 +147,7 @@ const App = () => {
             <Suspense fallback={<RouteFallback />}>
               <Routes>
                 <Route path="/login" element={<Login />} />
+                <Route path="/contrato/assinar/:id" element={<ContractSignPage />} />
 
                 <Route element={<ProtectedLayout />}>
                   <Route
@@ -227,6 +230,15 @@ const App = () => {
                   <Route path="/config" element={<SettingsRouteGate />} />
                   <Route path="/cores" element={<FabricColorsPage />} />
                   <Route path="/perfil" element={<ProfilePage />} />
+                  
+                  <Route 
+                    path="/contratos" 
+                    element={
+                      <RequirePermission permission="configuracoes" fallback={landingPath}>
+                        <ContractsPage />
+                      </RequirePermission>
+                    } 
+                  />
                 </Route>
 
                 <Route path="*" element={<Navigate to={landingPath} replace />} />

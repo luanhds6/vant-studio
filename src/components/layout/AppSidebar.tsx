@@ -1,4 +1,4 @@
-import { Building2, Home, LogOut, QrCode, Settings, Palette, type LucideIcon } from "lucide-react";
+import { Building2, Home, LogOut, QrCode, Settings, Palette, FileSignature, type LucideIcon } from "lucide-react";
 import { BRAND_ICON_SRC } from "@/brand";
 import { NavLink } from "@/components/NavLink";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -51,6 +51,7 @@ const menuItems: MenuItem[] = [
     anyOf: ["configuracoes", "novo_produto"],
   },
   { title: "Configurações", url: "/config", icon: Settings, anyOf: ["configuracoes", "usuarios"] },
+  { title: "Contratos", url: "/contratos", icon: FileSignature, anyOf: ["configuracoes"] },
 ];
 
 function userInitials(name: string) {
