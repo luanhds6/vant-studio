@@ -20,7 +20,8 @@ export const CatalogPage = ({
   const shellStyle: CSSProperties = {
     width: isLandscape ? "297mm" : "210mm",
     minHeight: isLandscape ? "210mm" : "297mm",
-    padding: isLandscape ? "6mm" : "8mm",
+    /* Mais espaço em baixo para o rodapé absoluto e galeria «Detalhes do Produto» não ficarem sobrepostos. */
+    padding: isLandscape ? "6mm 6mm 12mm 6mm" : "8mm 8mm 18mm 8mm",
     fontFamily: "Inter, Arial, Helvetica, sans-serif",
     fontSize: isLandscape ? "10px" : "11px",
     lineHeight: 1.35,

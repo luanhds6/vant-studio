@@ -1,6 +1,12 @@
 import { create } from "zustand";
 import { supabase } from "@/lib/supabase";
+import { withTimeout } from "@/lib/withTimeout";
 import { Product, CompanySettings, Hospital, type BaseColor } from "@/types/Product";
+
+/** Inserções com várias imagens em base64 podem demorar; evita espera infinita na UI. */
+const PRODUCT_WRITE_TIMEOUT_MS = 180_000;
+const PRODUCT_WRITE_TIMEOUT_MSG =
+  "O servidor não respondeu a tempo. Verifique a rede ou reduza o tamanho das imagens e tente novamente.";
 
 const defaultSettings: CompanySettings = {
   logo: "",
@@ -262,25 +268,29 @@ export const useProductStore = create<ProductStore>((set, get) => ({
   },
 
   addProduct: async (product) => {
-    const { error } = await supabase.from('products').insert({
-      id: product.id,
-      hospital_id: product.hospitalId,
-      nome: product.nome,
-      categoria: product.categoria,
-      referencia: product.referencia,
-      tecido: product.tecido,
-      tamanhos: product.tamanhos,
-      cores: product.cores,
-      dimensoes: product.dimensoes,
-      detalhes: product.detalhes,
-      imagem_principal: product.imagemPrincipal,
-      imagens_detalhe: product.imagensDetalhe,
-      pintura: product.pintura,
-      marca_cliente: product.marcaCliente,
-      nome_campo: product.nomeCampo,
-      timbrado: product.timbrado,
-      rastreavel: product.rastreavel
-    });
+    const { error } = await withTimeout(
+      supabase.from('products').insert({
+        id: product.id,
+        hospital_id: product.hospitalId,
+        nome: product.nome,
+        categoria: product.categoria,
+        referencia: product.referencia,
+        tecido: product.tecido,
+        tamanhos: product.tamanhos,
+        cores: product.cores,
+        dimensoes: product.dimensoes,
+        detalhes: product.detalhes,
+        imagem_principal: product.imagemPrincipal,
+        imagens_detalhe: product.imagensDetalhe,
+        pintura: product.pintura,
+        marca_cliente: product.marcaCliente,
+        nome_campo: product.nomeCampo,
+        timbrado: product.timbrado,
+        rastreavel: product.rastreavel
+      }),
+      PRODUCT_WRITE_TIMEOUT_MS,
+      PRODUCT_WRITE_TIMEOUT_MSG
+    );
     if (error) {
       console.group('❌ ERRO AO ADICIONAR PRODUTO');
       console.error('Mensagem:', error.message);
@@ -291,30 +301,37 @@ export const useProductStore = create<ProductStore>((set, get) => ({
       throw error;
     }
     console.log('✅ Produto adicionado ao banco com sucesso.');
-    // Não damos await no fetchData aqui para não travar a UI. 
-    // O Realtime já vai disparar o fetch automaticamente.
-    get().fetchData(); 
+    set((state) => ({
+      products: state.products.some((p) => p.id === product.id)
+        ? state.products.map((p) => (p.id === product.id ? product : p))
+        : [...state.products, product],
+    }));
+    void get().fetchData().catch((err) => console.error("fetchData após addProduct:", err));
   },
 
   updateProduct: async (product) => {
-    const { error } = await supabase.from('products').update({
-      nome: product.nome,
-      categoria: product.categoria,
-      referencia: product.referencia,
-      tecido: product.tecido,
-      tamanhos: product.tamanhos,
-      cores: product.cores,
-      dimensoes: product.dimensoes,
-      detalhes: product.detalhes,
-      imagem_principal: product.imagemPrincipal,
-      imagens_detalhe: product.imagensDetalhe,
-      pintura: product.pintura,
-      marca_cliente: product.marcaCliente,
-      nome_campo: product.nomeCampo,
-      timbrado: product.timbrado,
-      rastreavel: product.rastreavel,
-      updated_at: new Date().toISOString()
-    }).eq('id', product.id);
+    const { error } = await withTimeout(
+      supabase.from('products').update({
+        nome: product.nome,
+        categoria: product.categoria,
+        referencia: product.referencia,
+        tecido: product.tecido,
+        tamanhos: product.tamanhos,
+        cores: product.cores,
+        dimensoes: product.dimensoes,
+        detalhes: product.detalhes,
+        imagem_principal: product.imagemPrincipal,
+        imagens_detalhe: product.imagensDetalhe,
+        pintura: product.pintura,
+        marca_cliente: product.marcaCliente,
+        nome_campo: product.nomeCampo,
+        timbrado: product.timbrado,
+        rastreavel: product.rastreavel,
+        updated_at: new Date().toISOString()
+      }).eq('id', product.id),
+      PRODUCT_WRITE_TIMEOUT_MS,
+      PRODUCT_WRITE_TIMEOUT_MSG
+    );
     if (error) {
       console.group('❌ ERRO AO ATUALIZAR PRODUTO');
       console.error('Mensagem:', error.message);
@@ -325,7 +342,10 @@ export const useProductStore = create<ProductStore>((set, get) => ({
       throw error;
     }
     console.log('✅ Produto atualizado no banco com sucesso.');
-    get().fetchData();
+    set((state) => ({
+      products: state.products.map((p) => (p.id === product.id ? product : p)),
+    }));
+    void get().fetchData().catch((err) => console.error("fetchData após updateProduct:", err));
   },
 
   deleteProduct: async (id) => {

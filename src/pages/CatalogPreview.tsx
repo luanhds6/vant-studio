@@ -23,6 +23,24 @@ const slug = (s: string) =>
     .replace(/\s+/g, "-")
     .replace(/[^a-z0-9-]/g, "");
 
+/** Escala o bitmap capturado para caber no A4 em mm, sem cortar (equivalente a object-fit: contain). */
+function fitCanvasToPdfPage(
+  canvasWidthPx: number,
+  canvasHeightPx: number,
+  pdfWidthMm: number,
+  pdfHeightMm: number,
+  marginMm = 2,
+): { x: number; y: number; w: number; h: number } {
+  const innerW = Math.max(1, pdfWidthMm - 2 * marginMm);
+  const innerH = Math.max(1, pdfHeightMm - 2 * marginMm);
+  const scale = Math.min(innerW / canvasWidthPx, innerH / canvasHeightPx);
+  const w = canvasWidthPx * scale;
+  const h = canvasHeightPx * scale;
+  const x = marginMm + (innerW - w) / 2;
+  const y = marginMm + (innerH - h) / 2;
+  return { x, y, w, h };
+}
+
 const CatalogPreview = () => {
   const { hospitalId } = useParams<{ hospitalId: string }>();
   const navigate = useNavigate();
@@ -99,18 +117,29 @@ const CatalogPreview = () => {
       if (!pages) throw new Error("Sem páginas");
 
       for (let i = 0; i < pages.length; i++) {
-        const canvas = await html2canvas(pages[i] as HTMLElement, {
-          scale: 3,
+        const pageEl = pages[i] as HTMLElement;
+        const canvas = await html2canvas(pageEl, {
+          scale: 2,
           useCORS: true,
           backgroundColor: "#ffffff",
           logging: false,
+          width: pageEl.scrollWidth,
+          height: pageEl.scrollHeight,
+          onclone: (clonedDoc) => {
+            const root = clonedDoc.querySelector(".catalog-pdf-capture-root");
+            if (root instanceof HTMLElement) {
+              root.style.overflow = "visible";
+              root.style.maxHeight = "none";
+              root.style.height = "auto";
+            }
+          },
         });
 
         const imgData = canvas.toDataURL("image/jpeg", 1.0);
-        const imgH = (canvas.height * pdfWidth) / canvas.width;
+        const { x, y, w, h } = fitCanvasToPdfPage(canvas.width, canvas.height, pdfWidth, pdfHeight);
 
         if (i > 0) pdf.addPage("a4", isLandscape ? "l" : "p");
-        pdf.addImage(imgData, "JPEG", 0, 0, pdfWidth, imgH);
+        pdf.addImage(imgData, "JPEG", x, y, w, h);
       }
 
       const hosp = slug(hospital.nome);
@@ -256,7 +285,7 @@ const CatalogPreview = () => {
           <h2 className="text-xl font-semibold">
             Pré-visualização — {catalogOrientation === "landscape" ? "A4 paisagem" : "A4 retrato"}
           </h2>
-          <div className="overflow-auto rounded-xl border bg-muted/30 p-4">
+          <div className="catalog-pdf-capture-root overflow-auto rounded-xl border bg-muted/30 p-4">
             <div ref={catalogRef} className="flex flex-col items-center gap-6">
               {selectedProducts.map((product) => (
                 <div key={product.id} className="shadow-lg">

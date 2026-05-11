@@ -209,7 +209,15 @@ const ProductForm = () => {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = async () => {
+  const resetFormForNewProduct = useCallback(() => {
+    setForm({ ...emptyProduct, hospitalId: hospitalId ?? "" });
+    setNewTamanho("");
+    setNewCor({ nome: "", hex: "#f97316" });
+    setNewDetalhe("");
+    setExpandedIndustryIds([]);
+  }, [hospitalId]);
+
+  const handleSubmit = async (options?: { cadastrarOutro?: boolean }) => {
     if (!form.nome.trim()) {
       toast({ title: "Erro", description: "Nome do produto é obrigatório.", variant: "destructive" });
       return;
@@ -227,6 +235,7 @@ const ProductForm = () => {
           updatedAt: now,
         });
         toast({ title: "Produto atualizado!" });
+        navigate(`/hospital/${hospitalId}`);
       } else {
         await addProduct({
           ...form,
@@ -236,10 +245,20 @@ const ProductForm = () => {
           updatedAt: now,
         });
         toast({ title: "Produto criado!" });
+        if (options?.cadastrarOutro) {
+          resetFormForNewProduct();
+          navigate(`/hospital/${hospitalId}/produto/novo`, { replace: true });
+        } else {
+          navigate(`/hospital/${hospitalId}`);
+        }
       }
-      navigate(`/hospital/${hospitalId}`);
     } catch (error) {
-      toast({ title: "Erro ao salvar produto", variant: "destructive" });
+      const description = error instanceof Error ? error.message : undefined;
+      toast({
+        title: "Erro ao salvar produto",
+        description: description || "Tente novamente ou verifique sua conexão.",
+        variant: "destructive",
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -685,9 +704,21 @@ const ProductForm = () => {
         )}
       </Card>
 
-      <div className="flex gap-3 justify-end pb-8">
-        <Button variant="outline" onClick={() => navigate(`/hospital/${hospitalId}`)}>Cancelar</Button>
-        <Button onClick={handleSubmit} disabled={isSubmitting}>
+      <div className="flex flex-wrap items-center justify-end gap-3 pb-8">
+        <Button variant="outline" onClick={() => navigate(`/hospital/${hospitalId}`)} disabled={isSubmitting}>
+          Cancelar
+        </Button>
+        {!isEditing ? (
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => void handleSubmit({ cadastrarOutro: true })}
+            disabled={isSubmitting}
+          >
+            Salvar e cadastrar outro
+          </Button>
+        ) : null}
+        <Button type="button" onClick={() => void handleSubmit()} disabled={isSubmitting}>
           {isSubmitting ? "Salvando..." : isEditing ? "Salvar Alterações" : "Criar Produto"}
         </Button>
       </div>
