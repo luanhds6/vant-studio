@@ -9,7 +9,39 @@ if (!supabaseUrl || !supabaseAnonKey) {
   console.error('Missing Supabase environment variables. Please check your .env file.');
 }
 
-export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '');
+/** Alinhado ao timeout de escrita de produtos na store; aborta o fetch para não ficar «pendurado» sem rejeitar. */
+const SUPABASE_FETCH_TIMEOUT_MS = 200_000;
+
+function createFetchWithDeadline(baseFetch: typeof fetch, timeoutMs: number): typeof fetch {
+  return (input: RequestInfo | URL, init?: RequestInit) => {
+    const as = AbortSignal as typeof AbortSignal & {
+      timeout?: (ms: number) => AbortSignal;
+      any?: (signals: AbortSignal[]) => AbortSignal;
+    };
+
+    if (typeof as.timeout === "function") {
+      const deadline = as.timeout(timeoutMs);
+      const merged =
+        init?.signal && typeof as.any === "function"
+          ? as.any([init.signal, deadline])
+          : init?.signal ?? deadline;
+      return baseFetch(input, { ...init, signal: merged });
+    }
+
+    const ctrl = new AbortController();
+    const tid = setTimeout(() => ctrl.abort(), timeoutMs);
+    if (!init?.signal) {
+      return baseFetch(input, { ...init, signal: ctrl.signal }).finally(() => clearTimeout(tid));
+    }
+    return baseFetch(input, init).finally(() => clearTimeout(tid));
+  };
+}
+
+export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '', {
+  global: {
+    fetch: createFetchWithDeadline(globalThis.fetch.bind(globalThis), SUPABASE_FETCH_TIMEOUT_MS),
+  },
+});
 
 /** Erros típicos quando o refresh token no storage já não existe no servidor (troca de projeto, sessão revogada, etc.). */
 export function isInvalidStoredSessionError(

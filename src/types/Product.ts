@@ -42,6 +42,23 @@ export interface Hospital {
   createdAt: string;
 }
 
+/** Linha de detalhe técnico (lista numerada no catálogo). */
+export interface ProductTechnicalDetail {
+  id: string;
+  texto: string;
+  /** Imagem de exemplo opcional (base64), exibida ao lado do texto. */
+  imagem: string;
+}
+
+/** Bloco de medidas (ex.: corpo, bolso, barra, elástico). */
+export interface ProductDimensionBlock {
+  id: string;
+  titulo: string;
+  largura: string;
+  altura: string;
+  unidade: string;
+}
+
 export interface Product {
   id: string;
   /** Produto pertence a um único hospital */
@@ -52,12 +69,8 @@ export interface Product {
   tecido: string;
   tamanhos: string[];
   cores: ProductColor[];
-  dimensoes: {
-    largura: string;
-    altura: string;
-    unidade: string;
-  };
-  detalhes: { id: string; texto: string }[];
+  dimensoes: ProductDimensionBlock[];
+  detalhes: ProductTechnicalDetail[];
   imagemPrincipal: string; // base64
   imagensDetalhe: ProductDetail[];
   pintura: {

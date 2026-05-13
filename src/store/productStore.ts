@@ -8,6 +8,138 @@ const PRODUCT_WRITE_TIMEOUT_MS = 180_000;
 const PRODUCT_WRITE_TIMEOUT_MSG =
   "O servidor não respondeu a tempo. Verifique a rede ou reduza o tamanho das imagens e tente novamente.";
 
+export function normalizeDimensoes(raw: unknown): Product["dimensoes"] {
+  const block = (x: Record<string, unknown>): Product["dimensoes"][0] => ({
+    id: typeof x.id === "string" && x.id.length > 0 ? x.id : crypto.randomUUID(),
+    titulo: typeof x.titulo === "string" ? x.titulo : "",
+    largura: typeof x.largura === "string" ? x.largura : "",
+    altura: typeof x.altura === "string" ? x.altura : "",
+    unidade: typeof x.unidade === "string" && x.unidade.length > 0 ? x.unidade : "cm",
+  });
+
+  if (Array.isArray(raw)) {
+    const list = raw.map((item) => block((item ?? {}) as Record<string, unknown>));
+    return list.length > 0 ? list : [block({})];
+  }
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    const o = raw as { largura?: string; altura?: string; unidade?: string };
+    return [
+      block({
+        largura: o.largura ?? "",
+        altura: o.altura ?? "",
+        unidade: o.unidade ?? "cm",
+        titulo: "",
+      }),
+    ];
+  }
+  return [block({})];
+}
+
+function normalizeDetalhes(raw: unknown): Product["detalhes"] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((item) => {
+    const d = item as { id?: string; texto?: string; imagem?: string };
+    return {
+      id: typeof d.id === "string" && d.id.length > 0 ? d.id : crypto.randomUUID(),
+      texto: typeof d.texto === "string" ? d.texto : "",
+      imagem: typeof d.imagem === "string" ? d.imagem : "",
+    };
+  });
+}
+
+function normalizeCoresArray(raw: unknown): Product["cores"] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((item) => {
+    const c = item as { id?: string; nome?: string; hex?: string; fabricTypeId?: string };
+    return {
+      id: typeof c.id === "string" && c.id.length > 0 ? c.id : crypto.randomUUID(),
+      nome: typeof c.nome === "string" ? c.nome : "",
+      hex: typeof c.hex === "string" && c.hex.length > 0 ? c.hex : "#000000",
+      fabricTypeId: typeof c.fabricTypeId === "string" && c.fabricTypeId.length > 0 ? c.fabricTypeId : undefined,
+    };
+  });
+}
+
+function normalizeImagensDetalhe(raw: unknown): Product["imagensDetalhe"] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((item) => {
+    const d = item as { id?: string; titulo?: string; imagem?: string; posicao?: string };
+    return {
+      id: typeof d.id === "string" && d.id.length > 0 ? d.id : crypto.randomUUID(),
+      titulo: typeof d.titulo === "string" ? d.titulo : "",
+      imagem: typeof d.imagem === "string" ? d.imagem : "",
+      posicao: typeof d.posicao === "string" ? d.posicao : "",
+    };
+  });
+}
+
+/** Garante tipos e strings definidas para JSONB / PostgREST (evita undefined e formas antigas). */
+export function prepareProductForPersistence(product: Product): Product {
+  const pintura = product.pintura ?? { cor: "", tamanho: "", localizacao: "", imagem: "" };
+  const marcaCliente = product.marcaCliente ?? { cor: "", tamanho: "", localizacao: "", imagem: "" };
+  const nomeCampo = {
+    texto: "",
+    cor: "",
+    tamanho: "",
+    localizacao: "",
+    ...(typeof product.nomeCampo === "object" && product.nomeCampo !== null ? product.nomeCampo : {}),
+  };
+  const timbrado = product.timbrado ?? { ativo: false, imagem: "" };
+  const rastreavel = product.rastreavel ?? { ativo: false, imagem: "" };
+
+  return {
+    id: String(product.id ?? "").trim(),
+    hospitalId: String(product.hospitalId ?? "").trim(),
+    nome: String(product.nome ?? "").trim(),
+    categoria: String(product.categoria ?? ""),
+    referencia: String(product.referencia ?? ""),
+    tecido: String(product.tecido ?? ""),
+    tamanhos: Array.isArray(product.tamanhos) ? product.tamanhos.map((t) => String(t ?? "")) : [],
+    cores: normalizeCoresArray(product.cores),
+    dimensoes: normalizeDimensoes(product.dimensoes),
+    detalhes: normalizeDetalhes(product.detalhes),
+    imagemPrincipal: String(product.imagemPrincipal ?? ""),
+    imagensDetalhe: normalizeImagensDetalhe(product.imagensDetalhe),
+    pintura: {
+      cor: String(pintura.cor ?? ""),
+      tamanho: String(pintura.tamanho ?? ""),
+      localizacao: String(pintura.localizacao ?? ""),
+      imagem: String(pintura.imagem ?? ""),
+    },
+    marcaCliente: {
+      cor: String(marcaCliente.cor ?? ""),
+      tamanho: String(marcaCliente.tamanho ?? ""),
+      localizacao: String(marcaCliente.localizacao ?? ""),
+      imagem: String(marcaCliente.imagem ?? ""),
+    },
+    nomeCampo: {
+      texto: String(nomeCampo.texto ?? ""),
+      cor: String(nomeCampo.cor ?? ""),
+      tamanho: String(nomeCampo.tamanho ?? ""),
+      localizacao: String(nomeCampo.localizacao ?? ""),
+    },
+    timbrado: {
+      ativo: Boolean(timbrado.ativo),
+      imagem: String(timbrado.imagem ?? ""),
+    },
+    rastreavel: {
+      ativo: Boolean(rastreavel.ativo),
+      imagem: String(rastreavel.imagem ?? ""),
+    },
+    createdAt: String(product.createdAt ?? new Date().toISOString()),
+    updatedAt: String(product.updatedAt ?? new Date().toISOString()),
+  };
+}
+
+function throwIfSupabaseError(error: { message?: string; details?: string; hint?: string } | null): void {
+  if (!error) return;
+  const msg = [error.message, error.details, error.hint]
+    .map((x) => (x == null ? "" : String(x).trim()))
+    .filter(Boolean)
+    .join(" — ");
+  throw new Error(msg.length > 0 ? msg : "Erro ao gravar no servidor.");
+}
+
 const defaultSettings: CompanySettings = {
   logo: "",
   nomeEmpresa: "Minha Empresa",
@@ -183,14 +315,20 @@ export const useProductStore = create<ProductStore>((set, get) => ({
         referencia: p.referencia || '',
         tecido: p.tecido || '',
         tamanhos: p.tamanhos || [],
-        cores: p.cores || [],
-        dimensoes: p.dimensoes || { largura: '', altura: '', unidade: '' },
-        detalhes: p.detalhes || [],
+        cores: normalizeCoresArray(p.cores),
+        dimensoes: normalizeDimensoes(p.dimensoes),
+        detalhes: normalizeDetalhes(p.detalhes),
         imagemPrincipal: p.imagem_principal || '',
-        imagensDetalhe: p.imagens_detalhe || [],
+        imagensDetalhe: normalizeImagensDetalhe(p.imagens_detalhe),
         pintura: p.pintura || { cor: '', tamanho: '', localizacao: '', imagem: '' },
         marcaCliente: p.marca_cliente || { cor: '', tamanho: '', localizacao: '', imagem: '' },
-        nomeCampo: p.nome_campo || { texto: '', cor: '', tamanho: '', localizacao: '' },
+        nomeCampo: {
+          texto: "",
+          cor: "",
+          tamanho: "",
+          localizacao: "",
+          ...(typeof p.nome_campo === "object" && p.nome_campo !== null ? p.nome_campo : {}),
+        },
         timbrado: p.timbrado || { ativo: false, imagem: '' },
         rastreavel: p.rastreavel || { ativo: false, imagem: '' },
         createdAt: p.created_at,
@@ -268,25 +406,26 @@ export const useProductStore = create<ProductStore>((set, get) => ({
   },
 
   addProduct: async (product) => {
+    const safe = prepareProductForPersistence(product);
     const { error } = await withTimeout(
       supabase.from('products').insert({
-        id: product.id,
-        hospital_id: product.hospitalId,
-        nome: product.nome,
-        categoria: product.categoria,
-        referencia: product.referencia,
-        tecido: product.tecido,
-        tamanhos: product.tamanhos,
-        cores: product.cores,
-        dimensoes: product.dimensoes,
-        detalhes: product.detalhes,
-        imagem_principal: product.imagemPrincipal,
-        imagens_detalhe: product.imagensDetalhe,
-        pintura: product.pintura,
-        marca_cliente: product.marcaCliente,
-        nome_campo: product.nomeCampo,
-        timbrado: product.timbrado,
-        rastreavel: product.rastreavel
+        id: safe.id,
+        hospital_id: safe.hospitalId,
+        nome: safe.nome,
+        categoria: safe.categoria,
+        referencia: safe.referencia,
+        tecido: safe.tecido,
+        tamanhos: safe.tamanhos,
+        cores: safe.cores,
+        dimensoes: safe.dimensoes,
+        detalhes: safe.detalhes,
+        imagem_principal: safe.imagemPrincipal,
+        imagens_detalhe: safe.imagensDetalhe,
+        pintura: safe.pintura,
+        marca_cliente: safe.marcaCliente,
+        nome_campo: safe.nomeCampo,
+        timbrado: safe.timbrado,
+        rastreavel: safe.rastreavel
       }),
       PRODUCT_WRITE_TIMEOUT_MS,
       PRODUCT_WRITE_TIMEOUT_MSG
@@ -296,39 +435,44 @@ export const useProductStore = create<ProductStore>((set, get) => ({
       console.error('Mensagem:', error.message);
       console.error('Detalhes:', error.details);
       console.error('Código:', error.code);
-      console.error('Dados Enviados:', product);
+      console.error('Dados Enviados:', safe);
       console.groupEnd();
-      throw error;
+      throwIfSupabaseError(error);
     }
     console.log('✅ Produto adicionado ao banco com sucesso.');
     set((state) => ({
-      products: state.products.some((p) => p.id === product.id)
-        ? state.products.map((p) => (p.id === product.id ? product : p))
-        : [...state.products, product],
+      products: state.products.some((p) => p.id === safe.id)
+        ? state.products.map((p) => (p.id === safe.id ? safe : p))
+        : [...state.products, safe],
     }));
-    void get().fetchData().catch((err) => console.error("fetchData após addProduct:", err));
+    try {
+      await get().fetchData();
+    } catch (err) {
+      console.error("fetchData após addProduct:", err);
+    }
   },
 
   updateProduct: async (product) => {
+    const safe = prepareProductForPersistence(product);
     const { error } = await withTimeout(
       supabase.from('products').update({
-        nome: product.nome,
-        categoria: product.categoria,
-        referencia: product.referencia,
-        tecido: product.tecido,
-        tamanhos: product.tamanhos,
-        cores: product.cores,
-        dimensoes: product.dimensoes,
-        detalhes: product.detalhes,
-        imagem_principal: product.imagemPrincipal,
-        imagens_detalhe: product.imagensDetalhe,
-        pintura: product.pintura,
-        marca_cliente: product.marcaCliente,
-        nome_campo: product.nomeCampo,
-        timbrado: product.timbrado,
-        rastreavel: product.rastreavel,
+        nome: safe.nome,
+        categoria: safe.categoria,
+        referencia: safe.referencia,
+        tecido: safe.tecido,
+        tamanhos: safe.tamanhos,
+        cores: safe.cores,
+        dimensoes: safe.dimensoes,
+        detalhes: safe.detalhes,
+        imagem_principal: safe.imagemPrincipal,
+        imagens_detalhe: safe.imagensDetalhe,
+        pintura: safe.pintura,
+        marca_cliente: safe.marcaCliente,
+        nome_campo: safe.nomeCampo,
+        timbrado: safe.timbrado,
+        rastreavel: safe.rastreavel,
         updated_at: new Date().toISOString()
-      }).eq('id', product.id),
+      }).eq('id', safe.id),
       PRODUCT_WRITE_TIMEOUT_MS,
       PRODUCT_WRITE_TIMEOUT_MSG
     );
@@ -337,15 +481,19 @@ export const useProductStore = create<ProductStore>((set, get) => ({
       console.error('Mensagem:', error.message);
       console.error('Detalhes:', error.details);
       console.error('Código:', error.code);
-      console.error('ID:', product.id);
+      console.error('ID:', safe.id);
       console.groupEnd();
-      throw error;
+      throwIfSupabaseError(error);
     }
     console.log('✅ Produto atualizado no banco com sucesso.');
     set((state) => ({
-      products: state.products.map((p) => (p.id === product.id ? product : p)),
+      products: state.products.map((p) => (p.id === safe.id ? safe : p)),
     }));
-    void get().fetchData().catch((err) => console.error("fetchData após updateProduct:", err));
+    try {
+      await get().fetchData();
+    } catch (err) {
+      console.error("fetchData após updateProduct:", err);
+    }
   },
 
   deleteProduct: async (id) => {

@@ -65,11 +65,12 @@ async function generateQrDataUrl(text: string): Promise<string> {
 }
 
 function productToDraft(p: Product) {
-  const u = p.dimensoes.unidade || "cm";
+  const first = p.dimensoes[0];
+  const u = first?.unidade || "cm";
   return {
     nome: p.nome,
-    largura: p.dimensoes.largura,
-    altura: p.dimensoes.altura,
+    largura: first?.largura ?? "",
+    altura: first?.altura ?? "",
     unidade: (UNIDADES as readonly string[]).includes(u) ? u : "cm",
     codigoEtiqueta: p.referencia,
     imagem: p.imagemPrincipal,
@@ -97,11 +98,18 @@ function buildProductFromDraft(
     tecido: existing?.tecido ?? "",
     tamanhos: existing?.tamanhos ?? [],
     cores: existing?.cores ?? [],
-    dimensoes: {
-      largura: draft.largura.trim(),
-      altura: draft.altura.trim(),
-      unidade: draft.unidade,
-    },
+    dimensoes: (() => {
+      const firstExisting = existing?.dimensoes?.[0];
+      const rest = existing?.dimensoes?.slice(1) ?? [];
+      const first: Product["dimensoes"][0] = {
+        id: firstExisting?.id ?? generateId(),
+        titulo: existing ? (firstExisting?.titulo ?? "") : "Medida principal",
+        largura: draft.largura.trim(),
+        altura: draft.altura.trim(),
+        unidade: draft.unidade,
+      };
+      return [first, ...rest];
+    })(),
     detalhes: existing?.detalhes ?? [],
     imagemPrincipal: draft.imagem,
     imagensDetalhe: existing?.imagensDetalhe ?? [],
@@ -346,9 +354,15 @@ export default function ProductCadastroPage() {
   const showMain = Boolean(hospitalId && hospital);
 
   const dimLabel = (p: Product) => {
-    const { largura, altura, unidade } = p.dimensoes;
-    if (!largura && !altura) return "—";
-    return `${largura || "?"} × ${altura || "?"} ${unidade || "cm"}`;
+    const parts = p.dimensoes
+      .filter((d) => d.titulo.trim() || d.largura.trim() || d.altura.trim())
+      .map((d) => {
+        const u = d.unidade || "cm";
+        const dim = `${d.largura || "?"}×${d.altura || "?"} ${u}`;
+        const t = d.titulo.trim();
+        return t ? `${t}: ${dim}` : dim;
+      });
+    return parts.length > 0 ? parts.join(" · ") : "—";
   };
 
   return (

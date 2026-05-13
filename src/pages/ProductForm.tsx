@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef, type ChangeEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useShallow } from "zustand/react/shallow";
-import { useProductStore } from "@/store/productStore";
+import { useProductStore, normalizeDimensoes, prepareProductForPersistence } from "@/store/productStore";
 import { useAuthStore } from "@/store/authStore";
 import { getDefaultLandingPath } from "@/lib/routeAccess";
 import { Product, ProductColor, ProductDetail } from "@/types/Product";
@@ -16,6 +16,13 @@ import { ArrowLeft, Plus, X, Upload, Image as ImageIcon, ChevronDown, ChevronRig
 import { Switch } from "@/components/ui/switch";
 import { Factory } from "lucide-react";
 import { getFabricShapeSymbol, getFabricMarkerColor } from "@/lib/shapes";
+import {
+  clearProductDraft,
+  isDraftMostlyEmpty,
+  loadProductDraft,
+  saveProductDraft,
+} from "@/lib/productFormDraft";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const generateId = () => crypto.randomUUID();
 
@@ -35,7 +42,7 @@ const emptyProduct: Omit<Product, "id" | "createdAt" | "updatedAt"> = {
   tecido: "",
   tamanhos: [],
   cores: [],
-  dimensoes: { largura: "", altura: "", unidade: "cm" },
+  dimensoes: [{ id: generateId(), titulo: "", largura: "", altura: "", unidade: "cm" }],
   detalhes: [],
   imagemPrincipal: "",
   imagensDetalhe: [],
@@ -45,6 +52,23 @@ const emptyProduct: Omit<Product, "id" | "createdAt" | "updatedAt"> = {
   timbrado: { ativo: false, imagem: "" },
   rastreavel: { ativo: false, imagem: "" },
 };
+
+/** Um pouco acima do timeout de escrita em `productStore` (~180s) para desbloquear a UI se a promessa falhar em silêncio. */
+const PRODUCT_SUBMIT_GUARD_MS = 185_000;
+
+const AUTOSAVE_DEBOUNCE_MS = 2_200;
+
+/** Snapshot estável para comparar alterações (updated_at muda a cada gravação). */
+function snapshotProductWithoutUpdatedAt(p: Product): string {
+  const { updatedAt, ...rest } = p;
+  return JSON.stringify(rest);
+}
+
+function readSaveErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (err && typeof err === "object" && "message" in err) return String((err as { message: unknown }).message);
+  return "Tente novamente ou verifique sua conexão.";
+}
 
 const ProductForm = () => {
   const { hospitalId, id } = useParams<{ hospitalId: string; id: string }>();
@@ -64,7 +88,19 @@ const ProductForm = () => {
   const isEditing = Boolean(id);
 
   const [form, setForm] = useState<Omit<Product, "id" | "createdAt" | "updatedAt">>(emptyProduct);
-  const [newTamanho, setNewTamanho] = useState("");
+  const formRef = useRef(form);
+  formRef.current = form;
+
+  const novoProdutoInitRef = useRef<string | null>(null);
+  const rascunhoQuotaAvisoRef = useRef(false);
+  const [draftNotice, setDraftNotice] = useState<null | "restored" | "restored-no-images">(null);
+
+  const detalheImagemInputRef = useRef<HTMLInputElement>(null);
+  const [detalheImagemAlvoId, setDetalheImagemAlvoId] = useState<string | null>(null);
+  const lastAutosaveSnapshotRef = useRef<string | null>(null);
+  const loadedEditProductKeyRef = useRef<string | null>(null);
+
+  const isStoreLoading = useProductStore((s) => s.isLoading);
   const [newCor, setNewCor] = useState<{ nome: string; hex: string }>({ nome: "", hex: "#f97316" });
   const [newDetalhe, setNewDetalhe] = useState("");
   const [expandedIndustryIds, setExpandedIndustryIds] = useState<string[]>([]);
@@ -76,29 +112,63 @@ const ProductForm = () => {
   };
 
   useEffect(() => {
-    if (!hospitalId || !getHospital(hospitalId)) {
-      navigate(getDefaultLandingPath(canAccess), { replace: true });
-    }
-  }, [hospitalId, getHospital, navigate, canAccess]);
+    lastAutosaveSnapshotRef.current = null;
+  }, [id, isEditing, hospitalId]);
 
   useEffect(() => {
-    if (!hospitalId) return;
-    if (!isEditing) {
-      setForm((prev) => ({ ...prev, hospitalId }));
+    loadedEditProductKeyRef.current = null;
+  }, [id]);
+
+  useEffect(() => {
+    if (!hospitalId || !getHospital(hospitalId)) {
+      navigate(getDefaultLandingPath(canAccess), { replace: true });
       return;
     }
-    const existing = getProduct(id!);
-    if (existing) {
-      if (existing.hospitalId !== hospitalId) {
-        navigate(`/hospital/${existing.hospitalId}/produto/${id}`, { replace: true });
-        return;
+    if (!isEditing) {
+      const mark = `${hospitalId}:novo`;
+      if (novoProdutoInitRef.current !== mark) {
+        novoProdutoInitRef.current = mark;
+        const draft = loadProductDraft(hospitalId);
+        if (draft) {
+          setForm({
+            ...emptyProduct,
+            ...draft.form,
+            hospitalId,
+            dimensoes: normalizeDimensoes((draft.form as { dimensoes?: unknown }).dimensoes),
+          });
+          setDraftNotice(draft.imagesOmitted ? "restored-no-images" : "restored");
+          toast({
+            title: "Rascunho recuperado",
+            description: draft.imagesOmitted
+              ? "Texto e opções foram restaurados. As imagens eram demasiado grandes para guardar no rascunho — volte a carregá-las."
+              : "Pode continuar o cadastro de onde parou (incluindo após falha de rede ou atualização da página).",
+          });
+        } else {
+          setForm({ ...emptyProduct, hospitalId });
+          setDraftNotice(null);
+        }
       }
-      const { id: _pid, createdAt, updatedAt, ...rest } = existing;
-      setForm(rest);
-    } else {
-      navigate(`/hospital/${hospitalId}`, { replace: true });
+      return;
     }
-  }, [id, isEditing, getProduct, getHospital, hospitalId, navigate]);
+
+    novoProdutoInitRef.current = null;
+    const store = useProductStore.getState();
+    const existing = id ? store.getProduct(id) : undefined;
+    if (!existing) {
+      if (store.isLoading) return;
+      navigate(`/hospital/${hospitalId}`, { replace: true });
+      return;
+    }
+    if (existing.hospitalId !== hospitalId) {
+      navigate(`/hospital/${existing.hospitalId}/produto/${id}`, { replace: true });
+      return;
+    }
+    const loadKey = `${hospitalId}:${id}`;
+    if (loadedEditProductKeyRef.current === loadKey) return;
+    loadedEditProductKeyRef.current = loadKey;
+    const { id: _pid, createdAt, updatedAt, ...rest } = existing;
+    setForm(rest);
+  }, [id, isEditing, getHospital, hospitalId, navigate, canAccess, isStoreLoading]);
 
   const updateField = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -202,12 +272,39 @@ const ProductForm = () => {
 
   const addDetalhe = () => {
     if (newDetalhe.trim()) {
-      updateField("detalhes", [...form.detalhes, { id: generateId(), texto: newDetalhe.trim() }]);
+      updateField("detalhes", [...form.detalhes, { id: generateId(), texto: newDetalhe.trim(), imagem: "" }]);
       setNewDetalhe("");
     }
   };
 
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const openDetalheImagemPicker = (detalheId: string) => {
+    setDetalheImagemAlvoId(detalheId);
+    requestAnimationFrame(() => detalheImagemInputRef.current?.click());
+  };
+
+  const onDetalheImagemFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const alvo = detalheImagemAlvoId;
+    e.target.value = "";
+    setDetalheImagemAlvoId(null);
+    if (!file || !alvo) return;
+    try {
+      const b64 = await fileToBase64(file);
+      setForm((prev) => ({
+        ...prev,
+        detalhes: prev.detalhes.map((x) => (x.id === alvo ? { ...x, imagem: b64 } : x)),
+      }));
+    } catch {
+      toast({ title: "Erro", description: "Não foi possível ler a imagem.", variant: "destructive" });
+    }
+  };
+
+  const clearDetalheImagem = (detalheId: string) => {
+    setForm((prev) => ({
+      ...prev,
+      detalhes: prev.detalhes.map((x) => (x.id === detalheId ? { ...x, imagem: "" } : x)),
+    }));
+  };
 
   const resetFormForNewProduct = useCallback(() => {
     setForm({ ...emptyProduct, hospitalId: hospitalId ?? "" });
@@ -217,6 +314,137 @@ const ProductForm = () => {
     setExpandedIndustryIds([]);
   }, [hospitalId]);
 
+  useEffect(() => {
+    if (isEditing || !hospitalId) return;
+    const timer = window.setTimeout(() => {
+      const current = formRef.current;
+      if (isDraftMostlyEmpty(current)) {
+        clearProductDraft(hospitalId);
+        return;
+      }
+      const r = saveProductDraft(hospitalId, current);
+      if (!r.ok && r.reason === "quota" && !rascunhoQuotaAvisoRef.current) {
+        rascunhoQuotaAvisoRef.current = true;
+        toast({
+          title: "Rascunho incompleto",
+          description:
+            "Este browser não conseguiu guardar todas as imagens por falta de espaço. Tente imagens mais pequenas ou comprima os ficheiros antes de enviar.",
+          variant: "destructive",
+        });
+      } else if (r.ok && r.imagesOmitted && !rascunhoQuotaAvisoRef.current) {
+        rascunhoQuotaAvisoRef.current = true;
+        toast({
+          title: "Rascunho sem imagens",
+          description:
+            "O rascunho guardou apenas texto e opções. Reduza o tamanho das imagens para guardar tudo de uma vez neste dispositivo.",
+        });
+      }
+    }, 650);
+    return () => window.clearTimeout(timer);
+  }, [form, isEditing, hospitalId]);
+
+  /** Em edição: grava alterações no servidor com debounce (evita perda ao sair sem clicar em Salvar). */
+  useEffect(() => {
+    if (!isEditing || !id || !hospitalId) return;
+    const store = useProductStore.getState();
+    const existing = store.getProduct(id);
+    if (!existing) return;
+
+    const full: Product = {
+      ...form,
+      id,
+      hospitalId,
+      createdAt: existing.createdAt,
+      updatedAt: existing.updatedAt,
+    };
+    let prepared: Product;
+    try {
+      prepared = prepareProductForPersistence(full);
+    } catch {
+      return;
+    }
+    const snap = snapshotProductWithoutUpdatedAt(prepared);
+    if (lastAutosaveSnapshotRef.current === null) {
+      lastAutosaveSnapshotRef.current = snap;
+      return;
+    }
+    if (lastAutosaveSnapshotRef.current === snap) return;
+    if (!form.nome.trim()) return;
+
+    const timer = window.setTimeout(async () => {
+      if (!formRef.current.nome.trim()) return;
+      const st = useProductStore.getState();
+      const ex = st.getProduct(id);
+      if (!ex) return;
+      const fullNow: Product = {
+        ...formRef.current,
+        id,
+        hospitalId,
+        createdAt: ex.createdAt,
+        updatedAt: ex.updatedAt,
+      };
+      let prep: Product;
+      try {
+        prep = prepareProductForPersistence(fullNow);
+      } catch {
+        return;
+      }
+      const snapNow = snapshotProductWithoutUpdatedAt(prep);
+      if (lastAutosaveSnapshotRef.current === snapNow) return;
+      try {
+        await st.updateProduct(prep);
+        let verifySnap: string;
+        try {
+          verifySnap = snapshotProductWithoutUpdatedAt(
+            prepareProductForPersistence({
+              ...formRef.current,
+              id,
+              hospitalId,
+              createdAt: ex.createdAt,
+              updatedAt: ex.updatedAt,
+            }),
+          );
+        } catch {
+          return;
+        }
+        if (verifySnap !== snapNow) return;
+        lastAutosaveSnapshotRef.current = snapNow;
+      } catch (e) {
+        toast({
+          title: "Erro ao guardar automaticamente",
+          description: readSaveErrorMessage(e),
+          variant: "destructive",
+        });
+      }
+    }, AUTOSAVE_DEBOUNCE_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [form, isEditing, id, hospitalId]);
+
+  useEffect(() => {
+    if (isEditing || !hospitalId) return;
+    const flush = () => {
+      const hid = hospitalId;
+      const current = formRef.current;
+      if (!hid) return;
+      if (isDraftMostlyEmpty(current)) clearProductDraft(hid);
+      else saveProductDraft(hid, current);
+    };
+    window.addEventListener("pagehide", flush);
+    return () => window.removeEventListener("pagehide", flush);
+  }, [isEditing, hospitalId]);
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleDiscardDraft = useCallback(() => {
+    if (!hospitalId) return;
+    clearProductDraft(hospitalId);
+    resetFormForNewProduct();
+    setDraftNotice(null);
+    rascunhoQuotaAvisoRef.current = false;
+    toast({ title: "Rascunho removido", description: "O formulário foi reposto para um produto novo vazio." });
+  }, [hospitalId, resetFormForNewProduct]);
+
   const handleSubmit = async (options?: { cadastrarOutro?: boolean }) => {
     if (!form.nome.trim()) {
       toast({ title: "Erro", description: "Nome do produto é obrigatório.", variant: "destructive" });
@@ -224,6 +452,16 @@ const ProductForm = () => {
     }
 
     setIsSubmitting(true);
+    const guardTimer = window.setTimeout(() => {
+      setIsSubmitting(false);
+      toast({
+        title: "Tempo limite ao salvar",
+        description: isEditing
+          ? "A operação demorou demasiado. Verifique a rede, reduza o tamanho das imagens e tente novamente."
+          : "A operação demorou demasiado. O que já preencheu foi mantido como rascunho neste browser — tente de novo (rede mais estável ou imagens mais pequenas).",
+        variant: "destructive",
+      });
+    }, PRODUCT_SUBMIT_GUARD_MS);
     try {
       const now = new Date().toISOString();
       if (isEditing) {
@@ -244,6 +482,9 @@ const ProductForm = () => {
           createdAt: now,
           updatedAt: now,
         });
+        clearProductDraft(hospitalId!);
+        setDraftNotice(null);
+        rascunhoQuotaAvisoRef.current = false;
         toast({ title: "Produto criado!" });
         if (options?.cadastrarOutro) {
           resetFormForNewProduct();
@@ -253,13 +494,13 @@ const ProductForm = () => {
         }
       }
     } catch (error) {
-      const description = error instanceof Error ? error.message : undefined;
       toast({
         title: "Erro ao salvar produto",
-        description: description || "Tente novamente ou verifique sua conexão.",
+        description: readSaveErrorMessage(error),
         variant: "destructive",
       });
     } finally {
+      window.clearTimeout(guardTimer);
       setIsSubmitting(false);
     }
   };
@@ -274,6 +515,42 @@ const ProductForm = () => {
           {isEditing ? "Editar Produto" : "Novo Produto"}
         </h1>
       </div>
+
+      {!isEditing && hospitalId ? (
+        <div className="space-y-3">
+          {(draftNotice === "restored" || draftNotice === "restored-no-images") && (
+            <Alert>
+              <AlertTitle>Rascunho neste dispositivo</AlertTitle>
+              <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p>
+                  {draftNotice === "restored-no-images"
+                    ? "Os campos de texto e opções foram recuperados; volte a adicionar imagens grandes se for necessário."
+                    : "O preenchimento foi recuperado do armazenamento local do browser."}
+                </p>
+                <Button variant="outline" size="sm" type="button" className="shrink-0" onClick={handleDiscardDraft}>
+                  Limpar rascunho e recomeçar
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
+          <p className="text-xs text-muted-foreground">
+            Enquanto cria um produto novo, o formulário é guardado automaticamente neste browser (útil se a página
+            recarregar ou se o envio falhar).
+            {!isDraftMostlyEmpty(form) ? (
+              <>
+                {" "}
+                <button
+                  type="button"
+                  className="underline underline-offset-2 text-foreground/80 hover:text-foreground"
+                  onClick={handleDiscardDraft}
+                >
+                  Limpar rascunho e recomeçar
+                </button>
+              </>
+            ) : null}
+          </p>
+        </div>
+      ) : null}
 
       {/* Informações Básicas */}
       <Card>
@@ -300,20 +577,101 @@ const ProductForm = () => {
 
       {/* Dimensões */}
       <Card>
-        <CardHeader><CardTitle className="text-lg">Dimensões</CardTitle></CardHeader>
-        <CardContent className="grid grid-cols-3 gap-4">
-          <div className="space-y-2">
-            <Label>Largura</Label>
-            <Input value={form.dimensoes.largura} onChange={(e) => updateField("dimensoes", { ...form.dimensoes, largura: e.target.value })} placeholder="150" />
+        <CardHeader>
+          <CardTitle className="text-lg">Dimensões</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Adicione um bloco por parte a medir (ex.: corpo, bolso, barra, elástico, boca da peça). Cada bloco tem um
+            título e largura, altura e unidade.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                updateField("dimensoes", [
+                  ...form.dimensoes,
+                  { id: generateId(), titulo: "", largura: "", altura: "", unidade: "cm" },
+                ])
+              }
+            >
+              <Plus className="mr-1 h-4 w-4" />
+              Adicionar dimensão
+            </Button>
           </div>
-          <div className="space-y-2">
-            <Label>Altura</Label>
-            <Input value={form.dimensoes.altura} onChange={(e) => updateField("dimensoes", { ...form.dimensoes, altura: e.target.value })} placeholder="250" />
-          </div>
-          <div className="space-y-2">
-            <Label>Unidade</Label>
-            <Input value={form.dimensoes.unidade} onChange={(e) => updateField("dimensoes", { ...form.dimensoes, unidade: e.target.value })} placeholder="cm" />
-          </div>
+          {form.dimensoes.map((dim, index) => (
+            <div key={dim.id} className="space-y-3 rounded-lg border border-border/80 bg-muted/15 p-4">
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div className="min-w-0 flex-1 space-y-2">
+                  <Label>Título do bloco {index + 1}</Label>
+                  <Input
+                    value={dim.titulo}
+                    onChange={(e) =>
+                      updateField(
+                        "dimensoes",
+                        form.dimensoes.map((d) => (d.id === dim.id ? { ...d, titulo: e.target.value } : d)),
+                      )
+                    }
+                    placeholder="Ex.: Bolsos, Barra da calça, Elástico, Boca (esticada)…"
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="shrink-0"
+                  disabled={form.dimensoes.length <= 1}
+                  title={form.dimensoes.length <= 1 ? "Mantenha pelo menos um bloco de dimensões" : "Remover este bloco"}
+                  onClick={() => updateField("dimensoes", form.dimensoes.filter((d) => d.id !== dim.id))}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div className="space-y-2">
+                  <Label>Largura</Label>
+                  <Input
+                    value={dim.largura}
+                    onChange={(e) =>
+                      updateField(
+                        "dimensoes",
+                        form.dimensoes.map((d) => (d.id === dim.id ? { ...d, largura: e.target.value } : d)),
+                      )
+                    }
+                    placeholder="150"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Altura</Label>
+                  <Input
+                    value={dim.altura}
+                    onChange={(e) =>
+                      updateField(
+                        "dimensoes",
+                        form.dimensoes.map((d) => (d.id === dim.id ? { ...d, altura: e.target.value } : d)),
+                      )
+                    }
+                    placeholder="250"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Unidade</Label>
+                  <Input
+                    value={dim.unidade}
+                    onChange={(e) =>
+                      updateField(
+                        "dimensoes",
+                        form.dimensoes.map((d) => (d.id === dim.id ? { ...d, unidade: e.target.value } : d)),
+                      )
+                    }
+                    placeholder="cm"
+                  />
+                </div>
+              </div>
+            </div>
+          ))}
         </CardContent>
       </Card>
 
@@ -433,17 +791,71 @@ const ProductForm = () => {
 
       {/* Detalhes Técnicos */}
       <Card>
-        <CardHeader><CardTitle className="text-lg">Detalhes Técnicos</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle className="text-lg">Detalhes Técnicos</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Opcional: clique no círculo à esquerda de cada linha para adicionar uma pequena imagem de exemplo ao lado da descrição.
+          </p>
+        </CardHeader>
         <CardContent className="space-y-3">
+          <input
+            ref={detalheImagemInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => void onDetalheImagemFileChange(e)}
+          />
           <div className="flex gap-2">
-            <Input value={newDetalhe} onChange={(e) => setNewDetalhe(e.target.value)} placeholder="Ex: Bainha dupla de 1cm" onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addDetalhe())} />
-            <Button variant="outline" onClick={addDetalhe}><Plus className="h-4 w-4" /></Button>
+            <Input
+              value={newDetalhe}
+              onChange={(e) => setNewDetalhe(e.target.value)}
+              placeholder="Ex: Bainha dupla de 1cm"
+              onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addDetalhe())}
+            />
+            <Button variant="outline" onClick={addDetalhe}>
+              <Plus className="h-4 w-4" />
+            </Button>
           </div>
           <div className="space-y-2">
             {form.detalhes.map((d) => (
-              <div key={d.id} className="flex items-center justify-between px-3 py-2 rounded-lg bg-secondary text-sm">
-                <span>{d.texto}</span>
-                <button onClick={() => updateField("detalhes", form.detalhes.filter((x) => x.id !== d.id))} className="hover:text-destructive">
+              <div
+                key={d.id}
+                className="flex items-center gap-3 rounded-lg bg-secondary px-3 py-2 text-sm"
+              >
+                <div className="relative shrink-0">
+                  <button
+                    type="button"
+                    title={d.imagem ? "Alterar imagem de exemplo" : "Adicionar imagem de exemplo"}
+                    onClick={() => openDetalheImagemPicker(d.id)}
+                    className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-border bg-muted/80 ring-offset-background transition hover:border-primary/50 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    {d.imagem ? (
+                      <img src={d.imagem} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <ImageIcon className="h-4 w-4 text-muted-foreground" aria-hidden />
+                    )}
+                  </button>
+                  {d.imagem ? (
+                    <button
+                      type="button"
+                      title="Remover imagem"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        clearDetalheImagem(d.id);
+                      }}
+                      className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  ) : null}
+                </div>
+                <span className="min-w-0 flex-1 leading-snug">{d.texto}</span>
+                <button
+                  type="button"
+                  title="Remover detalhe"
+                  onClick={() => updateField("detalhes", form.detalhes.filter((x) => x.id !== d.id))}
+                  className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-destructive/15 hover:text-destructive"
+                >
                   <X className="h-4 w-4" />
                 </button>
               </div>
@@ -606,8 +1018,8 @@ const ProductForm = () => {
 
       <Card>
         <CardHeader><CardTitle className="text-lg">Nome do Campo</CardTitle></CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2 md:col-span-2">
+        <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="space-y-2 md:col-span-3">
             <Label>Texto</Label>
             <Textarea value={form.nomeCampo.texto} onChange={(e) => updateField("nomeCampo", { ...form.nomeCampo, texto: e.target.value })} />
           </div>
@@ -618,6 +1030,13 @@ const ProductForm = () => {
           <div className="space-y-2">
             <Label>Tamanho</Label>
             <Input value={form.nomeCampo.tamanho} onChange={(e) => updateField("nomeCampo", { ...form.nomeCampo, tamanho: e.target.value })} />
+          </div>
+          <div className="space-y-2">
+            <Label>Localização</Label>
+            <Input
+              value={form.nomeCampo.localizacao}
+              onChange={(e) => updateField("nomeCampo", { ...form.nomeCampo, localizacao: e.target.value })}
+            />
           </div>
         </CardContent>
       </Card>

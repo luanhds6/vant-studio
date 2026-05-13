@@ -108,18 +108,41 @@ export const CatalogPage = ({
                 </div>
               )}
 
-              {(product.dimensoes.largura || product.dimensoes.altura) && (
-                <div style={{ marginTop: "3mm", display: "flex", gap: "4mm", fontSize: "10px", color: "#111111", fontWeight: 500 }}>
-                  {product.dimensoes.largura && (
-                    <div style={{ padding: "2mm 3mm", background: "#eeeeee", borderRadius: "1mm", border: "1px solid #cfcfcf" }}>
-                      <strong>Largura:</strong> {product.dimensoes.largura} {product.dimensoes.unidade}
-                    </div>
-                  )}
-                  {product.dimensoes.altura && (
-                    <div style={{ padding: "2mm 3mm", background: "#eeeeee", borderRadius: "1mm", border: "1px solid #cfcfcf" }}>
-                      <strong>Altura:</strong> {product.dimensoes.altura} {product.dimensoes.unidade}
-                    </div>
-                  )}
+              {product.dimensoes.some((dim) => dim.largura || dim.altura || dim.titulo) && (
+                <div style={{ marginTop: "3mm", display: "flex", flexDirection: "column", gap: "2.5mm" }}>
+                  {product.dimensoes.map((dim) => {
+                    if (!dim.largura && !dim.altura && !dim.titulo) return null;
+                    return (
+                      <div key={dim.id}>
+                        {dim.titulo ? (
+                          <div
+                            style={{
+                              fontSize: "9px",
+                              fontWeight: 700,
+                              color: "#111111",
+                              marginBottom: "1mm",
+                              textTransform: "uppercase",
+                              letterSpacing: "0.35px",
+                            }}
+                          >
+                            {dim.titulo}
+                          </div>
+                        ) : null}
+                        <div style={{ display: "flex", gap: "4mm", fontSize: "10px", color: "#111111", fontWeight: 500, flexWrap: "wrap" }}>
+                          {dim.largura ? (
+                            <div style={{ padding: "2mm 3mm", background: "#eeeeee", borderRadius: "1mm", border: "1px solid #cfcfcf" }}>
+                              <strong>Largura:</strong> {dim.largura} {dim.unidade || "cm"}
+                            </div>
+                          ) : null}
+                          {dim.altura ? (
+                            <div style={{ padding: "2mm 3mm", background: "#eeeeee", borderRadius: "1mm", border: "1px solid #cfcfcf" }}>
+                              <strong>Altura:</strong> {dim.altura} {dim.unidade || "cm"}
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
 
@@ -138,17 +161,33 @@ export const CatalogPage = ({
                       <div key={d.id} style={{
                         padding: "2.25mm 3mm", fontSize: "10px", color: "#111111", lineHeight: 1.4,
                         borderBottom: i < product.detalhes.length - 1 ? "1px solid #e2e2e2" : "none",
-                        display: "flex", alignItems: "center", gap: "2mm",
+                        display: "flex", alignItems: "center", gap: "2.5mm",
                       }}>
-                        <div style={{ width: "4.5mm", height: "4.5mm", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                          <svg width="100%" height="100%" viewBox="0 0 20 20">
-                            <circle cx="10" cy="10" r="10" fill="#f97316" />
-                            <text x="50%" y="50%" dominantBaseline="central" textAnchor="middle" fill="white" fontSize="10" fontWeight="bold" fontFamily="Arial, sans-serif">
-                              {i + 1}
-                            </text>
-                          </svg>
-                        </div>
-                        {d.texto}
+                        {d.imagem ? (
+                          <img
+                            src={d.imagem}
+                            alt=""
+                            style={{
+                              width: "4.5mm",
+                              height: "4.5mm",
+                              flexShrink: 0,
+                              borderRadius: "50%",
+                              objectFit: "cover",
+                              border: "1px solid #cfcfcf",
+                              background: "#f7f7f7",
+                            }}
+                          />
+                        ) : (
+                          <div style={{ width: "4.5mm", height: "4.5mm", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <svg width="100%" height="100%" viewBox="0 0 20 20">
+                              <circle cx="10" cy="10" r="10" fill="#f97316" />
+                              <text x="50%" y="50%" dominantBaseline="central" textAnchor="middle" fill="white" fontSize="10" fontWeight="bold" fontFamily="Arial, sans-serif">
+                                {i + 1}
+                              </text>
+                            </svg>
+                          </div>
+                        )}
+                        <span style={{ flex: 1, minWidth: 0 }}>{d.texto}</span>
                       </div>
                     ))}
                   </div>
@@ -261,7 +300,10 @@ export const CatalogPage = ({
                   <InfoRow label="Localização" value={product.marcaCliente.localizacao} />
                 </InfoSection>
               )}
-              {(product.nomeCampo.texto || product.nomeCampo.cor || product.nomeCampo.tamanho) && (
+              {(product.nomeCampo.texto ||
+                product.nomeCampo.cor ||
+                product.nomeCampo.tamanho ||
+                product.nomeCampo.localizacao) && (
                 <InfoSection title="NOME DO CAMPO">
                   {product.nomeCampo.texto && (
                     <div style={{ padding: "2.25mm 3mm", fontSize: "10px", color: "#111111", fontWeight: 500, lineHeight: 1.4 }}>
@@ -270,6 +312,7 @@ export const CatalogPage = ({
                   )}
                   <InfoRow label="Cor" value={product.nomeCampo.cor} />
                   <InfoRow label="Tamanho" value={product.nomeCampo.tamanho} />
+                  <InfoRow label="Localização" value={product.nomeCampo.localizacao} />
                 </InfoSection>
               )}
               {product.timbrado?.ativo && product.timbrado?.imagem && (
@@ -525,7 +568,12 @@ function getLandscapeInfoBlocks(product: Product): { id: string; node: ReactNode
       ),
     });
   }
-  if (product.nomeCampo.texto || product.nomeCampo.cor || product.nomeCampo.tamanho) {
+  if (
+    product.nomeCampo.texto ||
+    product.nomeCampo.cor ||
+    product.nomeCampo.tamanho ||
+    product.nomeCampo.localizacao
+  ) {
     blocks.push({
       id: "nomeCampo",
       node: (
@@ -537,6 +585,7 @@ function getLandscapeInfoBlocks(product: Product): { id: string; node: ReactNode
           )}
           <InfoRow label="Cor" value={product.nomeCampo.cor} />
           <InfoRow label="Tamanho" value={product.nomeCampo.tamanho} />
+          <InfoRow label="Localização" value={product.nomeCampo.localizacao} />
         </InfoSection>
       ),
     });
@@ -670,18 +719,41 @@ function CatalogLandscapeBody({
               Desenho técnico
             </div>
           )}
-          {(product.dimensoes.largura || product.dimensoes.altura) && (
-            <div style={{ marginTop: "2mm", display: "flex", flexWrap: "wrap", gap: "2mm", fontSize: "9px", color: "#111111", fontWeight: 500 }}>
-              {product.dimensoes.largura && (
-                <div style={{ padding: "1.5mm 2mm", background: "#eeeeee", borderRadius: "1mm", border: "1px solid #cfcfcf" }}>
-                  <strong>Largura:</strong> {product.dimensoes.largura} {product.dimensoes.unidade}
-                </div>
-              )}
-              {product.dimensoes.altura && (
-                <div style={{ padding: "1.5mm 2mm", background: "#eeeeee", borderRadius: "1mm", border: "1px solid #cfcfcf" }}>
-                  <strong>Altura:</strong> {product.dimensoes.altura} {product.dimensoes.unidade}
-                </div>
-              )}
+          {product.dimensoes.some((dim) => dim.largura || dim.altura || dim.titulo) && (
+            <div style={{ marginTop: "2mm", display: "flex", flexDirection: "column", gap: "2mm" }}>
+              {product.dimensoes.map((dim) => {
+                if (!dim.largura && !dim.altura && !dim.titulo) return null;
+                return (
+                  <div key={dim.id}>
+                    {dim.titulo ? (
+                      <div
+                        style={{
+                          fontSize: "8px",
+                          fontWeight: 700,
+                          color: "#111111",
+                          marginBottom: "0.75mm",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.3px",
+                        }}
+                      >
+                        {dim.titulo}
+                      </div>
+                    ) : null}
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "2mm", fontSize: "9px", color: "#111111", fontWeight: 500 }}>
+                      {dim.largura ? (
+                        <div style={{ padding: "1.5mm 2mm", background: "#eeeeee", borderRadius: "1mm", border: "1px solid #cfcfcf" }}>
+                          <strong>Largura:</strong> {dim.largura} {dim.unidade || "cm"}
+                        </div>
+                      ) : null}
+                      {dim.altura ? (
+                        <div style={{ padding: "1.5mm 2mm", background: "#eeeeee", borderRadius: "1mm", border: "1px solid #cfcfcf" }}>
+                          <strong>Altura:</strong> {dim.altura} {dim.unidade || "cm"}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -702,17 +774,34 @@ function CatalogLandscapeBody({
                   <div key={d.id} style={{
                     padding: "1.75mm 2mm", fontSize: "9px", color: "#111111", lineHeight: 1.4,
                     borderBottom: i < product.detalhes.length - 1 ? "1px solid #e2e2e2" : "none",
-                    display: "flex", alignItems: "flex-start", gap: "1.5mm",
+                    display: "flex", alignItems: "flex-start", gap: "1.75mm",
                   }}>
-                    <div style={{ width: "3.5mm", height: "3.5mm", flexShrink: 0 }}>
-                      <svg width="100%" height="100%" viewBox="0 0 20 20">
-                        <circle cx="10" cy="10" r="10" fill="#f97316" />
-                        <text x="50%" y="50%" dominantBaseline="central" textAnchor="middle" fill="white" fontSize="10" fontWeight="bold" fontFamily="Arial, sans-serif">
-                          {i + 1}
-                        </text>
-                      </svg>
-                    </div>
-                    <span style={{ lineHeight: 1.4, wordBreak: "break-word", fontWeight: 500 }}>{d.texto}</span>
+                    {d.imagem ? (
+                      <img
+                        src={d.imagem}
+                        alt=""
+                        style={{
+                          width: "3.5mm",
+                          height: "3.5mm",
+                          flexShrink: 0,
+                          marginTop: "0.15mm",
+                          borderRadius: "50%",
+                          objectFit: "cover",
+                          border: "1px solid #cfcfcf",
+                          background: "#f7f7f7",
+                        }}
+                      />
+                    ) : (
+                      <div style={{ width: "3.5mm", height: "3.5mm", flexShrink: 0 }}>
+                        <svg width="100%" height="100%" viewBox="0 0 20 20">
+                          <circle cx="10" cy="10" r="10" fill="#f97316" />
+                          <text x="50%" y="50%" dominantBaseline="central" textAnchor="middle" fill="white" fontSize="10" fontWeight="bold" fontFamily="Arial, sans-serif">
+                            {i + 1}
+                          </text>
+                        </svg>
+                      </div>
+                    )}
+                    <span style={{ lineHeight: 1.4, wordBreak: "break-word", fontWeight: 500, flex: 1, minWidth: 0 }}>{d.texto}</span>
                   </div>
                 ))}
               </div>
