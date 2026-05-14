@@ -25,23 +25,38 @@ async function withProductWriteRetry<T>(run: () => Promise<T>): Promise<T> {
   throw lastErr;
 }
 
+/** IDs estáveis quando o JSON antigo não traz `id` — evita snapshot de autosave mudar a cada chamada. */
+function stableFallbackId(prefix: string, index: number, seed: string): string {
+  let h = 2166136261 >>> 0;
+  const str = `${prefix}|${index}|${seed}`;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return `${prefix}-tmp-${index}-${h.toString(16).padStart(8, "0")}`;
+}
+
 export function normalizeDimensoes(raw: unknown): Product["dimensoes"] {
-  const block = (x: Record<string, unknown>): Product["dimensoes"][0] => ({
-    id: typeof x.id === "string" && x.id.length > 0 ? x.id : crypto.randomUUID(),
-    titulo: typeof x.titulo === "string" ? x.titulo : "",
-    largura: typeof x.largura === "string" ? x.largura : "",
-    altura: typeof x.altura === "string" ? x.altura : "",
-    unidade: typeof x.unidade === "string" && x.unidade.length > 0 ? x.unidade : "cm",
-  });
+  const block = (index: number, x: Record<string, unknown>): Product["dimensoes"][0] => {
+    const titulo = typeof x.titulo === "string" ? x.titulo : "";
+    const largura = typeof x.largura === "string" ? x.largura : "";
+    const altura = typeof x.altura === "string" ? x.altura : "";
+    const unidade = typeof x.unidade === "string" && x.unidade.length > 0 ? x.unidade : "cm";
+    const id =
+      typeof x.id === "string" && x.id.length > 0
+        ? x.id
+        : stableFallbackId("dim", index, `${titulo}\0${largura}\0${altura}\0${unidade}`);
+    return { id, titulo, largura, altura, unidade };
+  };
 
   if (Array.isArray(raw)) {
-    const list = raw.map((item) => block((item ?? {}) as Record<string, unknown>));
-    return list.length > 0 ? list : [block({})];
+    const list = raw.map((item, i) => block(i, (item ?? {}) as Record<string, unknown>));
+    return list.length > 0 ? list : [block(0, {})];
   }
   if (raw && typeof raw === "object" && !Array.isArray(raw)) {
     const o = raw as { largura?: string; altura?: string; unidade?: string };
     return [
-      block({
+      block(0, {
         largura: o.largura ?? "",
         altura: o.altura ?? "",
         unidade: o.unidade ?? "cm",
@@ -49,43 +64,57 @@ export function normalizeDimensoes(raw: unknown): Product["dimensoes"] {
       }),
     ];
   }
-  return [block({})];
+  return [block(0, {})];
 }
 
 function normalizeDetalhes(raw: unknown): Product["detalhes"] {
   if (!Array.isArray(raw)) return [];
-  return raw.map((item) => {
+  return raw.map((item, index) => {
     const d = item as { id?: string; texto?: string; imagem?: string };
+    const texto = typeof d.texto === "string" ? d.texto : "";
+    const imagem = typeof d.imagem === "string" ? d.imagem : "";
     return {
-      id: typeof d.id === "string" && d.id.length > 0 ? d.id : crypto.randomUUID(),
-      texto: typeof d.texto === "string" ? d.texto : "",
-      imagem: typeof d.imagem === "string" ? d.imagem : "",
+      id: typeof d.id === "string" && d.id.length > 0 ? d.id : stableFallbackId("det", index, `${texto}\0${imagem}`),
+      texto,
+      imagem,
     };
   });
 }
 
 function normalizeCoresArray(raw: unknown): Product["cores"] {
   if (!Array.isArray(raw)) return [];
-  return raw.map((item) => {
+  return raw.map((item, index) => {
     const c = item as { id?: string; nome?: string; hex?: string; fabricTypeId?: string };
+    const nome = typeof c.nome === "string" ? c.nome : "";
+    const hex = typeof c.hex === "string" && c.hex.length > 0 ? c.hex : "#000000";
+    const fabricTypeId = typeof c.fabricTypeId === "string" && c.fabricTypeId.length > 0 ? c.fabricTypeId : "";
     return {
-      id: typeof c.id === "string" && c.id.length > 0 ? c.id : crypto.randomUUID(),
-      nome: typeof c.nome === "string" ? c.nome : "",
-      hex: typeof c.hex === "string" && c.hex.length > 0 ? c.hex : "#000000",
-      fabricTypeId: typeof c.fabricTypeId === "string" && c.fabricTypeId.length > 0 ? c.fabricTypeId : undefined,
+      id:
+        typeof c.id === "string" && c.id.length > 0
+          ? c.id
+          : stableFallbackId("cor", index, `${nome}\0${hex}\0${fabricTypeId}`),
+      nome,
+      hex,
+      fabricTypeId: fabricTypeId.length > 0 ? fabricTypeId : undefined,
     };
   });
 }
 
 function normalizeImagensDetalhe(raw: unknown): Product["imagensDetalhe"] {
   if (!Array.isArray(raw)) return [];
-  return raw.map((item) => {
+  return raw.map((item, index) => {
     const d = item as { id?: string; titulo?: string; imagem?: string; posicao?: string };
+    const titulo = typeof d.titulo === "string" ? d.titulo : "";
+    const imagem = typeof d.imagem === "string" ? d.imagem : "";
+    const posicao = typeof d.posicao === "string" ? d.posicao : "";
     return {
-      id: typeof d.id === "string" && d.id.length > 0 ? d.id : crypto.randomUUID(),
-      titulo: typeof d.titulo === "string" ? d.titulo : "",
-      imagem: typeof d.imagem === "string" ? d.imagem : "",
-      posicao: typeof d.posicao === "string" ? d.posicao : "",
+      id:
+        typeof d.id === "string" && d.id.length > 0
+          ? d.id
+          : stableFallbackId("imgd", index, `${titulo}\0${posicao}\0${imagem.slice(0, 64)}`),
+      titulo,
+      imagem,
+      posicao,
     };
   });
 }
@@ -464,11 +493,11 @@ export const useProductStore = create<ProductStore>((set, get) => ({
         ? state.products.map((p) => (p.id === safe.id ? safe : p))
         : [...state.products, safe],
     }));
-    try {
-      await get().fetchData();
-    } catch (err) {
-      console.error("fetchData após addProduct:", err);
-    }
+    void get()
+      .fetchData()
+      .catch((err) => {
+        console.error("fetchData após addProduct:", err);
+      });
   },
 
   updateProduct: async (product) => {
@@ -510,11 +539,11 @@ export const useProductStore = create<ProductStore>((set, get) => ({
     set((state) => ({
       products: state.products.map((p) => (p.id === safe.id ? safe : p)),
     }));
-    try {
-      await get().fetchData();
-    } catch (err) {
-      console.error("fetchData após updateProduct:", err);
-    }
+    void get()
+      .fetchData()
+      .catch((err) => {
+        console.error("fetchData após updateProduct:", err);
+      });
   },
 
   deleteProduct: async (id) => {

@@ -108,6 +108,8 @@ const ProductForm = () => {
   useEffect(() => {
     autosaveChainRef.current = Promise.resolve();
   }, [id]);
+  const autosaveErrorToastAtRef = useRef(0);
+  const [autosaveVisibilityEpoch, setAutosaveVisibilityEpoch] = useState(0);
   const loadedEditProductKeyRef = useRef<string | null>(null);
 
   const isStoreLoading = useProductStore((s) => s.isLoading);
@@ -125,6 +127,14 @@ const ProductForm = () => {
   useEffect(() => {
     lastAutosaveSnapshotRef.current = null;
   }, [id, isEditing, hospitalId]);
+
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === "visible") setAutosaveVisibilityEpoch((n) => n + 1);
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, []);
 
   useEffect(() => {
     loadedEditProductKeyRef.current = null;
@@ -384,7 +394,9 @@ const ProductForm = () => {
 
     const targetProductId = id;
     const timer = window.setTimeout(() => {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
       autosaveChainRef.current = autosaveChainRef.current.then(async () => {
+        if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
         if (currentEditProductIdRef.current !== targetProductId) return;
         if (!formRef.current.nome.trim()) return;
         const st = useProductStore.getState();
@@ -425,6 +437,9 @@ const ProductForm = () => {
           if (verifySnap !== snapNow) return;
           lastAutosaveSnapshotRef.current = snapNow;
         } catch (e) {
+          const now = Date.now();
+          if (now - autosaveErrorToastAtRef.current < 60_000) return;
+          autosaveErrorToastAtRef.current = now;
           toast({
             title: "Erro ao guardar automaticamente",
             description: readSaveErrorMessage(e),
@@ -435,7 +450,7 @@ const ProductForm = () => {
     }, AUTOSAVE_DEBOUNCE_MS);
 
     return () => window.clearTimeout(timer);
-  }, [form, isEditing, id, hospitalId]);
+  }, [form, isEditing, id, hospitalId, autosaveVisibilityEpoch]);
 
   useEffect(() => {
     if (isEditing || !hospitalId) return;
