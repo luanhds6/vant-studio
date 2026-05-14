@@ -12,9 +12,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useDropzone } from "react-dropzone";
 import { toast } from "@/hooks/use-toast";
-import { ArrowLeft, Plus, X, Upload, Image as ImageIcon, ChevronDown, ChevronRight } from "lucide-react";
+import { ArrowLeft, Plus, X, Upload, Image as ImageIcon, ChevronDown, ChevronRight, Pencil, Check, Factory } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
-import { Factory } from "lucide-react";
 import { getFabricShapeSymbol, getFabricMarkerColor } from "@/lib/shapes";
 import {
   clearProductDraft,
@@ -116,6 +115,8 @@ const ProductForm = () => {
   const [newCor, setNewCor] = useState<{ nome: string; hex: string }>({ nome: "", hex: "#f97316" });
   const [newTamanho, setNewTamanho] = useState("");
   const [newDetalhe, setNewDetalhe] = useState("");
+  const [editingDetalheId, setEditingDetalheId] = useState<string | null>(null);
+  const [editDetalheDraft, setEditDetalheDraft] = useState("");
   const [expandedIndustryIds, setExpandedIndustryIds] = useState<string[]>([]);
 
   const toggleIndustryExpanded = (industryId: string) => {
@@ -138,6 +139,11 @@ const ProductForm = () => {
 
   useEffect(() => {
     loadedEditProductKeyRef.current = null;
+  }, [id]);
+
+  useEffect(() => {
+    setEditingDetalheId(null);
+    setEditDetalheDraft("");
   }, [id]);
 
   useEffect(() => {
@@ -298,6 +304,34 @@ const ProductForm = () => {
     }
   };
 
+  const startEditDetalhe = (d: { id: string; texto: string }) => {
+    setEditingDetalheId(d.id);
+    setEditDetalheDraft(d.texto);
+  };
+
+  const cancelEditDetalhe = () => {
+    setEditingDetalheId(null);
+    setEditDetalheDraft("");
+  };
+
+  const commitEditDetalhe = () => {
+    if (!editingDetalheId) return;
+    const t = editDetalheDraft.trim();
+    if (!t) {
+      toast({
+        title: "Texto vazio",
+        description: "Escreva uma descrição ou cancele a edição.",
+        variant: "destructive",
+      });
+      return;
+    }
+    updateField(
+      "detalhes",
+      form.detalhes.map((x) => (x.id === editingDetalheId ? { ...x, texto: t } : x)),
+    );
+    cancelEditDetalhe();
+  };
+
   const openDetalheImagemPicker = (detalheId: string) => {
     setDetalheImagemAlvoId(detalheId);
     requestAnimationFrame(() => detalheImagemInputRef.current?.click());
@@ -332,6 +366,8 @@ const ProductForm = () => {
     setNewTamanho("");
     setNewCor({ nome: "", hex: "#f97316" });
     setNewDetalhe("");
+    setEditingDetalheId(null);
+    setEditDetalheDraft("");
     setExpandedIndustryIds([]);
   }, [hospitalId]);
 
@@ -825,7 +861,8 @@ const ProductForm = () => {
         <CardHeader>
           <CardTitle className="text-lg">Detalhes Técnicos</CardTitle>
           <p className="text-sm text-muted-foreground">
-            Opcional: clique no círculo à esquerda de cada linha para adicionar uma pequena imagem de exemplo ao lado da descrição.
+            Opcional: clique no círculo à esquerda de cada linha para adicionar uma pequena imagem de exemplo ao lado da
+            descrição. Use o ícone de lápis para alterar o texto sem apagar o detalhe.
           </p>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -880,11 +917,53 @@ const ProductForm = () => {
                     </button>
                   ) : null}
                 </div>
-                <span className="min-w-0 flex-1 leading-snug">{d.texto}</span>
+                {editingDetalheId === d.id ? (
+                  <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center">
+                    <Input
+                      value={editDetalheDraft}
+                      onChange={(e) => setEditDetalheDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          commitEditDetalhe();
+                        }
+                        if (e.key === "Escape") {
+                          e.preventDefault();
+                          cancelEditDetalhe();
+                        }
+                      }}
+                      className="flex-1"
+                      autoFocus
+                    />
+                    <div className="flex shrink-0 gap-1">
+                      <Button type="button" size="sm" variant="default" className="h-8 px-2" onClick={commitEditDetalhe} title="Guardar">
+                        <Check className="h-4 w-4" />
+                      </Button>
+                      <Button type="button" size="sm" variant="outline" className="h-8 px-2" onClick={cancelEditDetalhe} title="Cancelar">
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <span className="min-w-0 flex-1 leading-snug">{d.texto}</span>
+                )}
+                {editingDetalheId === d.id ? null : (
+                  <button
+                    type="button"
+                    title="Editar descrição"
+                    onClick={() => startEditDetalhe(d)}
+                    className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                )}
                 <button
                   type="button"
                   title="Remover detalhe"
-                  onClick={() => updateField("detalhes", form.detalhes.filter((x) => x.id !== d.id))}
+                  onClick={() => {
+                    if (editingDetalheId === d.id) cancelEditDetalhe();
+                    updateField("detalhes", form.detalhes.filter((x) => x.id !== d.id));
+                  }}
                   className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-destructive/15 hover:text-destructive"
                 >
                   <X className="h-4 w-4" />

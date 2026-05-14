@@ -1,6 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
-import { Product, CompanySettings } from "@/types/Product";
-import { getFabricShapeSymbol, getFabricMarkerColor } from "@/lib/shapes";
+import { Product, CompanySettings, type ProductColor } from "@/types/Product";
 
 export type CatalogOrientation = "portrait" | "landscape";
 
@@ -8,6 +7,45 @@ interface CatalogPageProps {
   product: Product;
   settings: CompanySettings;
   orientation?: CatalogOrientation;
+}
+
+function normalizeHexForSwatch(hex: string | undefined): string {
+  const t = (hex ?? "").trim();
+  if (/^#[0-9a-fA-F]{6}$/i.test(t)) return t;
+  if (/^#[0-9a-fA-F]{3}$/i.test(t)) {
+    const r = t[1];
+    const g = t[2];
+    const b = t[3];
+    return `#${r}${r}${g}${g}${b}${b}`;
+  }
+  return "#888888";
+}
+
+/** Amostra da cor (`hex`) + nome — para o catálogo/PDF (evita bolinha preta do marcador de tecido). */
+function CatalogColorSwatchRow({ c, compact }: { c: ProductColor; compact: boolean }) {
+  const fill = normalizeHexForSwatch(c.hex);
+  const sw = compact ? "2.8mm" : "3.2mm";
+  const fontSize = compact ? "8px" : "9px";
+  const gap = compact ? "1mm" : "1.5mm";
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap }}>
+      <div
+        aria-hidden
+        style={{
+          width: sw,
+          height: sw,
+          borderRadius: "50%",
+          backgroundColor: fill,
+          border: "1px solid rgba(0,0,0,0.22)",
+          flexShrink: 0,
+          boxSizing: "border-box",
+          WebkitPrintColorAdjust: "exact",
+          printColorAdjust: "exact",
+        }}
+      />
+      <span style={{ fontSize, fontWeight: 600, color: "#111111", lineHeight: 1.25 }}>{c.nome}</span>
+    </div>
+  );
 }
 
 export const CatalogPage = ({
@@ -221,19 +259,7 @@ export const CatalogPage = ({
                 <InfoSection title="CORES">
                   <div style={{ display: "flex", flexWrap: "wrap", gap: "2mm", padding: "2mm 3mm", alignItems: "center" }}>
                     {product.cores.map((c) => (
-                      <div key={c.id} style={{ display: "flex", alignItems: "center", gap: "1.5mm" }}>
-                        <div style={{
-                          color: getFabricMarkerColor(c.fabricTypeId),
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: "16px",
-                          lineHeight: 1
-                        }}>
-                          {getFabricShapeSymbol(c.fabricTypeId)}
-                        </div>
-                        <span style={{ fontSize: "9px", fontWeight: 600, color: "#111111" }}>{c.nome}</span>
-                      </div>
+                      <CatalogColorSwatchRow key={c.id} c={c} compact={false} />
                     ))}
                   </div>
                 </InfoSection>
@@ -480,19 +506,7 @@ function getLandscapeInfoBlocks(product: Product): { id: string; node: ReactNode
         <InfoSection title="CORES">
           <div style={{ display: "flex", flexWrap: "wrap", gap: "1.5mm", padding: "1.5mm 2mm", alignItems: "center" }}>
             {product.cores.map((c) => (
-              <div key={c.id} style={{ display: "flex", alignItems: "center", gap: "1mm" }}>
-                <div style={{
-                  color: getFabricMarkerColor(c.fabricTypeId),
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "14px",
-                  lineHeight: 1
-                }}>
-                  {getFabricShapeSymbol(c.fabricTypeId)}
-                </div>
-                <span style={{ fontSize: "8px", fontWeight: 600, color: "#111111" }}>{c.nome}</span>
-              </div>
+              <CatalogColorSwatchRow key={c.id} c={c} compact />
             ))}
           </div>
         </InfoSection>
