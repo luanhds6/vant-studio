@@ -4,9 +4,26 @@ import { withTimeout } from "@/lib/withTimeout";
 import { Product, CompanySettings, Hospital, type BaseColor } from "@/types/Product";
 
 /** Inserções com várias imagens em base64 podem demorar; evita espera infinita na UI. */
-const PRODUCT_WRITE_TIMEOUT_MS = 180_000;
+const PRODUCT_WRITE_TIMEOUT_MS = 240_000;
 const PRODUCT_WRITE_TIMEOUT_MSG =
   "O servidor não respondeu a tempo. Verifique a rede ou reduza o tamanho das imagens e tente novamente.";
+
+const WRITE_RETRY_DELAY_MS = 2_000;
+
+async function withProductWriteRetry<T>(run: () => Promise<T>): Promise<T> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      return await run();
+    } catch (e) {
+      lastErr = e;
+      const isTimeout = e instanceof Error && e.message === PRODUCT_WRITE_TIMEOUT_MSG;
+      if (!isTimeout || attempt === 1) throw e;
+      await new Promise((r) => setTimeout(r, WRITE_RETRY_DELAY_MS));
+    }
+  }
+  throw lastErr;
+}
 
 export function normalizeDimensoes(raw: unknown): Product["dimensoes"] {
   const block = (x: Record<string, unknown>): Product["dimensoes"][0] => ({
@@ -407,28 +424,30 @@ export const useProductStore = create<ProductStore>((set, get) => ({
 
   addProduct: async (product) => {
     const safe = prepareProductForPersistence(product);
-    const { error } = await withTimeout(
-      supabase.from('products').insert({
-        id: safe.id,
-        hospital_id: safe.hospitalId,
-        nome: safe.nome,
-        categoria: safe.categoria,
-        referencia: safe.referencia,
-        tecido: safe.tecido,
-        tamanhos: safe.tamanhos,
-        cores: safe.cores,
-        dimensoes: safe.dimensoes,
-        detalhes: safe.detalhes,
-        imagem_principal: safe.imagemPrincipal,
-        imagens_detalhe: safe.imagensDetalhe,
-        pintura: safe.pintura,
-        marca_cliente: safe.marcaCliente,
-        nome_campo: safe.nomeCampo,
-        timbrado: safe.timbrado,
-        rastreavel: safe.rastreavel
-      }),
-      PRODUCT_WRITE_TIMEOUT_MS,
-      PRODUCT_WRITE_TIMEOUT_MSG
+    const { error } = await withProductWriteRetry(() =>
+      withTimeout(
+        supabase.from('products').insert({
+          id: safe.id,
+          hospital_id: safe.hospitalId,
+          nome: safe.nome,
+          categoria: safe.categoria,
+          referencia: safe.referencia,
+          tecido: safe.tecido,
+          tamanhos: safe.tamanhos,
+          cores: safe.cores,
+          dimensoes: safe.dimensoes,
+          detalhes: safe.detalhes,
+          imagem_principal: safe.imagemPrincipal,
+          imagens_detalhe: safe.imagensDetalhe,
+          pintura: safe.pintura,
+          marca_cliente: safe.marcaCliente,
+          nome_campo: safe.nomeCampo,
+          timbrado: safe.timbrado,
+          rastreavel: safe.rastreavel,
+        }),
+        PRODUCT_WRITE_TIMEOUT_MS,
+        PRODUCT_WRITE_TIMEOUT_MSG,
+      ),
     );
     if (error) {
       console.group('❌ ERRO AO ADICIONAR PRODUTO');
@@ -454,27 +473,29 @@ export const useProductStore = create<ProductStore>((set, get) => ({
 
   updateProduct: async (product) => {
     const safe = prepareProductForPersistence(product);
-    const { error } = await withTimeout(
-      supabase.from('products').update({
-        nome: safe.nome,
-        categoria: safe.categoria,
-        referencia: safe.referencia,
-        tecido: safe.tecido,
-        tamanhos: safe.tamanhos,
-        cores: safe.cores,
-        dimensoes: safe.dimensoes,
-        detalhes: safe.detalhes,
-        imagem_principal: safe.imagemPrincipal,
-        imagens_detalhe: safe.imagensDetalhe,
-        pintura: safe.pintura,
-        marca_cliente: safe.marcaCliente,
-        nome_campo: safe.nomeCampo,
-        timbrado: safe.timbrado,
-        rastreavel: safe.rastreavel,
-        updated_at: new Date().toISOString()
-      }).eq('id', safe.id),
-      PRODUCT_WRITE_TIMEOUT_MS,
-      PRODUCT_WRITE_TIMEOUT_MSG
+    const { error } = await withProductWriteRetry(() =>
+      withTimeout(
+        supabase.from('products').update({
+          nome: safe.nome,
+          categoria: safe.categoria,
+          referencia: safe.referencia,
+          tecido: safe.tecido,
+          tamanhos: safe.tamanhos,
+          cores: safe.cores,
+          dimensoes: safe.dimensoes,
+          detalhes: safe.detalhes,
+          imagem_principal: safe.imagemPrincipal,
+          imagens_detalhe: safe.imagensDetalhe,
+          pintura: safe.pintura,
+          marca_cliente: safe.marcaCliente,
+          nome_campo: safe.nomeCampo,
+          timbrado: safe.timbrado,
+          rastreavel: safe.rastreavel,
+          updated_at: new Date().toISOString(),
+        }).eq('id', safe.id),
+        PRODUCT_WRITE_TIMEOUT_MS,
+        PRODUCT_WRITE_TIMEOUT_MSG,
+      ),
     );
     if (error) {
       console.group('❌ ERRO AO ATUALIZAR PRODUTO');

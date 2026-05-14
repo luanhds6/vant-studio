@@ -53,8 +53,8 @@ const emptyProduct: Omit<Product, "id" | "createdAt" | "updatedAt"> = {
   rastreavel: { ativo: false, imagem: "" },
 };
 
-/** Um pouco acima do timeout de escrita em `productStore` (~180s) para desbloquear a UI se a promessa falhar em silêncio. */
-const PRODUCT_SUBMIT_GUARD_MS = 185_000;
+/** Um pouco acima do pior caso de escrita no store (timeout 240s × 2 tentativas + pausa de retry). */
+const PRODUCT_SUBMIT_GUARD_MS = 500_000;
 
 const AUTOSAVE_DEBOUNCE_MS = 2_200;
 
@@ -98,10 +98,21 @@ const ProductForm = () => {
   const detalheImagemInputRef = useRef<HTMLInputElement>(null);
   const [detalheImagemAlvoId, setDetalheImagemAlvoId] = useState<string | null>(null);
   const lastAutosaveSnapshotRef = useRef<string | null>(null);
+  /** Evita gravar o formulário atual no produto errado se a rota mudar durante um pedido lento. */
+  const currentEditProductIdRef = useRef<string | undefined>(id);
+  useEffect(() => {
+    currentEditProductIdRef.current = id;
+  }, [id]);
+  /** Serializa autosaves: vários `updateProduct` em paralelo com JSON grande costumam dar timeout. */
+  const autosaveChainRef = useRef(Promise.resolve());
+  useEffect(() => {
+    autosaveChainRef.current = Promise.resolve();
+  }, [id]);
   const loadedEditProductKeyRef = useRef<string | null>(null);
 
   const isStoreLoading = useProductStore((s) => s.isLoading);
   const [newCor, setNewCor] = useState<{ nome: string; hex: string }>({ nome: "", hex: "#f97316" });
+  const [newTamanho, setNewTamanho] = useState("");
   const [newDetalhe, setNewDetalhe] = useState("");
   const [expandedIndustryIds, setExpandedIndustryIds] = useState<string[]>([]);
 
@@ -371,51 +382,56 @@ const ProductForm = () => {
     if (lastAutosaveSnapshotRef.current === snap) return;
     if (!form.nome.trim()) return;
 
-    const timer = window.setTimeout(async () => {
-      if (!formRef.current.nome.trim()) return;
-      const st = useProductStore.getState();
-      const ex = st.getProduct(id);
-      if (!ex) return;
-      const fullNow: Product = {
-        ...formRef.current,
-        id,
-        hospitalId,
-        createdAt: ex.createdAt,
-        updatedAt: ex.updatedAt,
-      };
-      let prep: Product;
-      try {
-        prep = prepareProductForPersistence(fullNow);
-      } catch {
-        return;
-      }
-      const snapNow = snapshotProductWithoutUpdatedAt(prep);
-      if (lastAutosaveSnapshotRef.current === snapNow) return;
-      try {
-        await st.updateProduct(prep);
-        let verifySnap: string;
+    const targetProductId = id;
+    const timer = window.setTimeout(() => {
+      autosaveChainRef.current = autosaveChainRef.current.then(async () => {
+        if (currentEditProductIdRef.current !== targetProductId) return;
+        if (!formRef.current.nome.trim()) return;
+        const st = useProductStore.getState();
+        const ex = st.getProduct(targetProductId);
+        if (!ex) return;
+        const fullNow: Product = {
+          ...formRef.current,
+          id: targetProductId,
+          hospitalId,
+          createdAt: ex.createdAt,
+          updatedAt: ex.updatedAt,
+        };
+        let prep: Product;
         try {
-          verifySnap = snapshotProductWithoutUpdatedAt(
-            prepareProductForPersistence({
-              ...formRef.current,
-              id,
-              hospitalId,
-              createdAt: ex.createdAt,
-              updatedAt: ex.updatedAt,
-            }),
-          );
+          prep = prepareProductForPersistence(fullNow);
         } catch {
           return;
         }
-        if (verifySnap !== snapNow) return;
-        lastAutosaveSnapshotRef.current = snapNow;
-      } catch (e) {
-        toast({
-          title: "Erro ao guardar automaticamente",
-          description: readSaveErrorMessage(e),
-          variant: "destructive",
-        });
-      }
+        const snapNow = snapshotProductWithoutUpdatedAt(prep);
+        if (lastAutosaveSnapshotRef.current === snapNow) return;
+        try {
+          await st.updateProduct(prep);
+          if (currentEditProductIdRef.current !== targetProductId) return;
+          let verifySnap: string;
+          try {
+            verifySnap = snapshotProductWithoutUpdatedAt(
+              prepareProductForPersistence({
+                ...formRef.current,
+                id: targetProductId,
+                hospitalId,
+                createdAt: ex.createdAt,
+                updatedAt: ex.updatedAt,
+              }),
+            );
+          } catch {
+            return;
+          }
+          if (verifySnap !== snapNow) return;
+          lastAutosaveSnapshotRef.current = snapNow;
+        } catch (e) {
+          toast({
+            title: "Erro ao guardar automaticamente",
+            description: readSaveErrorMessage(e),
+            variant: "destructive",
+          });
+        }
+      });
     }, AUTOSAVE_DEBOUNCE_MS);
 
     return () => window.clearTimeout(timer);
