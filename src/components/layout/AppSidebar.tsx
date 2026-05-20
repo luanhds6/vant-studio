@@ -1,5 +1,5 @@
 import { Building2, Home, LogOut, QrCode, Settings, Palette, FileSignature, type LucideIcon } from "lucide-react";
-import { BRAND_ICON_SRC } from "@/brand";
+import { BRAND_ICON_SRC, BRAND_LOGO_SRC } from "@/brand";
 import { NavLink } from "@/components/NavLink";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuthStore } from "@/store/authStore";
@@ -79,16 +79,17 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon" variant="floating" className="border-0">
       <SidebarContent>
-        <div className="flex w-full items-center justify-center border-b border-sidebar-border/60 px-4 py-4">
+        <div className="flex w-full items-center justify-center border-b border-sidebar-border/60 px-3 py-4 sm:py-5">
           <img
-            src={BRAND_ICON_SRC}
-            alt=""
-            width={96}
-            height={96}
+            src={collapsed ? BRAND_ICON_SRC : BRAND_LOGO_SRC}
+            alt="Vant Studio"
+            width={collapsed ? 96 : 220}
+            height={collapsed ? 96 : 200}
+            decoding="async"
             className={
               collapsed
-                ? "h-9 w-auto max-h-9 object-contain object-bottom"
-                : "h-10 w-auto max-w-[2.75rem] object-contain object-bottom sm:h-11"
+                ? "h-11 w-auto max-h-11 max-w-[2.75rem] object-contain object-center"
+                : "h-auto w-full max-w-[9.5rem] object-contain object-center sm:max-w-[10.5rem]"
             }
           />
         </div>

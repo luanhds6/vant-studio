@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { BRAND_ICON_SRC } from "@/brand";
+import { BRAND_LOGO_SRC } from "@/brand";
 import { toast } from "sonner";
 import { useAuthStore } from "@/store/authStore";
 import { useNavigate } from "react-router-dom";
@@ -52,12 +52,12 @@ export default function Login() {
         <div className="flex min-h-0 flex-1 flex-col justify-center px-8 py-10 text-foreground md:min-h-0 md:px-10 md:py-8 dark:text-white">
           <div className="mb-8 text-center">
             <img
-              src={BRAND_ICON_SRC}
-              alt=""
-              width={512}
-              height={512}
+              src={BRAND_LOGO_SRC}
+              alt="Vant Studio"
+              width={320}
+              height={300}
               decoding="async"
-              className="mx-auto block h-40 w-auto max-w-[12rem] object-contain object-bottom sm:h-44 sm:max-w-[13.5rem] select-none leading-none drop-shadow-[0_0_16px_hsl(199_89%_45%_/_0.2)] dark:drop-shadow-[0_0_18px_hsl(199_65%_55%_/_0.18)]"
+              className="mx-auto block h-36 w-auto max-w-[11rem] object-contain object-bottom sm:h-40 sm:max-w-[12.5rem] select-none leading-none drop-shadow-[0_0_16px_hsl(199_89%_45%_/_0.2)] dark:drop-shadow-[0_0_18px_hsl(199_65%_55%_/_0.18)]"
             />
           </div>
 

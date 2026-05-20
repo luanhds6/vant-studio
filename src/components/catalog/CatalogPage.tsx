@@ -3,6 +3,11 @@ import { Product, CompanySettings, type ProductColor } from "@/types/Product";
 
 export type CatalogOrientation = "portrait" | "landscape";
 
+/** Texto do título — no PDF só este nó sobe (card/fundo mantém tamanho). */
+function CatalogHeaderLabel({ children }: { children: ReactNode }) {
+  return <span className="catalog-header-label">{children}</span>;
+}
+
 interface CatalogPageProps {
   product: Product;
   settings: CompanySettings;
@@ -21,16 +26,17 @@ function normalizeHexForSwatch(hex: string | undefined): string {
   return "#888888";
 }
 
-/** Amostra da cor (`hex`) + nome — para o catálogo/PDF (evita bolinha preta do marcador de tecido). */
+/** Amostra da cor (`hex`) + nome — layout da pré-visualização; nudge no PDF via onclone. */
 function CatalogColorSwatchRow({ c, compact }: { c: ProductColor; compact: boolean }) {
   const fill = normalizeHexForSwatch(c.hex);
   const sw = compact ? "2.8mm" : "3.2mm";
   const fontSize = compact ? "8px" : "9px";
   const gap = compact ? "1mm" : "1.5mm";
   return (
-    <div style={{ display: "flex", alignItems: "center", gap }}>
+    <div className="catalog-color-swatch-row" style={{ display: "flex", alignItems: "center", gap }}>
       <div
         aria-hidden
+        className="catalog-color-dot"
         style={{
           width: sw,
           height: sw,
@@ -43,7 +49,44 @@ function CatalogColorSwatchRow({ c, compact }: { c: ProductColor; compact: boole
           printColorAdjust: "exact",
         }}
       />
-      <span style={{ fontSize, fontWeight: 600, color: "#111111", lineHeight: 1.25 }}>{c.nome}</span>
+      <span
+        className="catalog-color-label"
+        style={{ fontSize, fontWeight: 600, color: "#111111", lineHeight: 1.25 }}
+      >
+        {c.nome}
+      </span>
+    </div>
+  );
+}
+
+function CatalogDetailMarker({ index, sizeMm }: { index: number; sizeMm: string }) {
+  return (
+    <div
+      className="catalog-detail-marker"
+      style={{
+        width: sizeMm,
+        height: sizeMm,
+        flexShrink: 0,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <svg width="100%" height="100%" viewBox="0 0 20 20" className="catalog-detail-marker-svg">
+        <circle cx="10" cy="10" r="10" fill="#f97316" />
+        <text
+          x="50%"
+          y="50%"
+          dominantBaseline="central"
+          textAnchor="middle"
+          fill="white"
+          fontSize="10"
+          fontWeight="bold"
+          fontFamily="Arial, sans-serif"
+        >
+          {index}
+        </text>
+      </svg>
     </div>
   );
 }
@@ -154,6 +197,7 @@ export const CatalogPage = ({
                       <div key={dim.id}>
                         {dim.titulo ? (
                           <div
+                            className="catalog-dim-title"
                             style={{
                               fontSize: "9px",
                               fontWeight: 700,
@@ -163,18 +207,22 @@ export const CatalogPage = ({
                               letterSpacing: "0.35px",
                             }}
                           >
-                            {dim.titulo}
+                            <CatalogHeaderLabel>{dim.titulo}</CatalogHeaderLabel>
                           </div>
                         ) : null}
                         <div style={{ display: "flex", gap: "4mm", fontSize: "10px", color: "#111111", fontWeight: 500, flexWrap: "wrap" }}>
                           {dim.largura ? (
-                            <div style={{ padding: "2mm 3mm", background: "#eeeeee", borderRadius: "1mm", border: "1px solid #cfcfcf" }}>
-                              <strong>Largura:</strong> {dim.largura} {dim.unidade || "cm"}
+                            <div className="catalog-dim-chip" style={{ padding: "2mm 3mm", background: "#eeeeee", borderRadius: "1mm", border: "1px solid #cfcfcf" }}>
+                              <CatalogHeaderLabel>
+                                <strong>Largura:</strong> {dim.largura} {dim.unidade || "cm"}
+                              </CatalogHeaderLabel>
                             </div>
                           ) : null}
                           {dim.altura ? (
-                            <div style={{ padding: "2mm 3mm", background: "#eeeeee", borderRadius: "1mm", border: "1px solid #cfcfcf" }}>
-                              <strong>Altura:</strong> {dim.altura} {dim.unidade || "cm"}
+                            <div className="catalog-dim-chip" style={{ padding: "2mm 3mm", background: "#eeeeee", borderRadius: "1mm", border: "1px solid #cfcfcf" }}>
+                              <CatalogHeaderLabel>
+                                <strong>Altura:</strong> {dim.altura} {dim.unidade || "cm"}
+                              </CatalogHeaderLabel>
                             </div>
                           ) : null}
                         </div>
@@ -186,17 +234,20 @@ export const CatalogPage = ({
 
               {product.detalhes.length > 0 && (
                 <div style={{ marginTop: "4mm" }}>
-                  <div style={{
-                    background: "#2a2a2a", color: "white", padding: "1.75mm 3mm",
-                    borderRadius: "1mm 1mm 0 0", fontSize: "9px", fontWeight: 700,
-                    textTransform: "uppercase", letterSpacing: "0.5px",
-                    minHeight: "6.5mm", display: "flex", alignItems: "center",
-                  }}>
-                    Detalhes Técnicos
+                  <div
+                    className="catalog-panel-title"
+                    style={{
+                      background: "#2a2a2a", color: "white", padding: "1.75mm 3mm",
+                      borderRadius: "1mm 1mm 0 0", fontSize: "9px", fontWeight: 700,
+                      textTransform: "uppercase", letterSpacing: "0.5px",
+                      minHeight: "6.5mm", display: "flex", alignItems: "center",
+                    }}
+                  >
+                    <CatalogHeaderLabel>Detalhes Técnicos</CatalogHeaderLabel>
                   </div>
                   <div style={{ border: "1px solid #c0c0c0", borderTop: "none", borderRadius: "0 0 1mm 1mm" }}>
                     {product.detalhes.map((d, i) => (
-                      <div key={d.id} style={{
+                      <div key={d.id} className="catalog-detail-row" style={{
                         padding: "2.25mm 3mm", fontSize: "10px", color: "#111111", lineHeight: 1.4,
                         borderBottom: i < product.detalhes.length - 1 ? "1px solid #e2e2e2" : "none",
                         display: "flex", alignItems: "center", gap: "2.5mm",
@@ -205,6 +256,7 @@ export const CatalogPage = ({
                           <img
                             src={d.imagem}
                             alt=""
+                            className="catalog-detail-marker"
                             style={{
                               width: "4.5mm",
                               height: "4.5mm",
@@ -216,16 +268,9 @@ export const CatalogPage = ({
                             }}
                           />
                         ) : (
-                          <div style={{ width: "4.5mm", height: "4.5mm", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                            <svg width="100%" height="100%" viewBox="0 0 20 20">
-                              <circle cx="10" cy="10" r="10" fill="#f97316" />
-                              <text x="50%" y="50%" dominantBaseline="central" textAnchor="middle" fill="white" fontSize="10" fontWeight="bold" fontFamily="Arial, sans-serif">
-                                {i + 1}
-                              </text>
-                            </svg>
-                          </div>
+                          <CatalogDetailMarker index={i + 1} sizeMm="4.5mm" />
                         )}
-                        <span style={{ flex: 1, minWidth: 0 }}>{d.texto}</span>
+                        <span className="catalog-detail-label" style={{ flex: 1, minWidth: 0 }}>{d.texto}</span>
                       </div>
                     ))}
                   </div>
@@ -388,13 +433,16 @@ export const CatalogPage = ({
 
           {product.imagensDetalhe.length > 0 && (
             <div style={{ marginTop: "5mm" }}>
-              <div style={{
-                background: "#2a2a2a", color: "white", padding: "1.75mm 3mm",
-                borderRadius: "1mm 1mm 0 0", fontSize: "10px", fontWeight: 700,
-                textTransform: "uppercase", letterSpacing: "0.45px",
-                display: "flex", alignItems: "center", minHeight: "6.5mm",
-              }}>
-                Detalhes do Produto
+              <div
+                className="catalog-panel-title"
+                style={{
+                  background: "#2a2a2a", color: "white", padding: "1.75mm 3mm",
+                  borderRadius: "1mm 1mm 0 0", fontSize: "10px", fontWeight: 700,
+                  textTransform: "uppercase", letterSpacing: "0.45px",
+                  minHeight: "6.5mm", display: "flex", alignItems: "center",
+                }}
+              >
+                <CatalogHeaderLabel>Detalhes do Produto</CatalogHeaderLabel>
               </div>
               <div style={{
                 border: "1px solid #c0c0c0", borderTop: "none", borderRadius: "0 0 1mm 1mm",
@@ -455,7 +503,7 @@ export const CatalogPage = ({
             borderTop: "1px solid #c0c0c0", paddingTop: "2mm",
             display: "flex", justifyContent: "space-between", fontSize: "9px", color: "#444444", fontWeight: 500,
           }}>
-            <span>Gerado por Vant Studio — Catálogo Digital</span>
+            <span>Gerado por Vant Studio Catalogo — Catálogo Digital</span>
             <span>{product.referencia}</span>
           </div>
         </>
@@ -472,7 +520,7 @@ function getLandscapeInfoBlocks(product: Product): { id: string; node: ReactNode
     blocks.push({
       id: "tecido",
       node: (
-        <InfoSection title="TECIDO">
+        <InfoSection title="TECIDO" compact>
           <div style={{ padding: "1.75mm 2mm", fontSize: "10px", color: "#111111", fontWeight: 500, lineHeight: 1.4 }}>
             {product.tecido}
           </div>
@@ -484,7 +532,7 @@ function getLandscapeInfoBlocks(product: Product): { id: string; node: ReactNode
     blocks.push({
       id: "tamanhos",
       node: (
-        <InfoSection title="TAMANHOS">
+        <InfoSection title="TAMANHOS" compact>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "1mm", padding: "1.5mm 2mm" }}>
             {product.tamanhos.map((t) => (
               <span key={t} style={{
@@ -503,7 +551,7 @@ function getLandscapeInfoBlocks(product: Product): { id: string; node: ReactNode
     blocks.push({
       id: "cores",
       node: (
-        <InfoSection title="CORES">
+        <InfoSection title="CORES" compact>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "1.5mm", padding: "1.5mm 2mm", alignItems: "center" }}>
             {product.cores.map((c) => (
               <CatalogColorSwatchRow key={c.id} c={c} compact />
@@ -517,7 +565,7 @@ function getLandscapeInfoBlocks(product: Product): { id: string; node: ReactNode
     blocks.push({
       id: "pintura",
       node: (
-        <InfoSection title="PINTURA">
+        <InfoSection title="PINTURA" compact>
           {product.pintura.imagem && (
             <div style={{
               padding: "1.5mm 2mm",
@@ -558,7 +606,7 @@ function getLandscapeInfoBlocks(product: Product): { id: string; node: ReactNode
     blocks.push({
       id: "marca",
       node: (
-        <InfoSection title="MARCA DO CLIENTE">
+        <InfoSection title="MARCA DO CLIENTE" compact>
           {product.marcaCliente.imagem && (
             <div style={{ padding: "1mm 2mm", display: "flex", justifyContent: "center" }}>
               <img
@@ -591,7 +639,7 @@ function getLandscapeInfoBlocks(product: Product): { id: string; node: ReactNode
     blocks.push({
       id: "nomeCampo",
       node: (
-        <InfoSection title="NOME DO CAMPO">
+        <InfoSection title="NOME DO CAMPO" compact>
           {product.nomeCampo.texto && (
             <div style={{ padding: "1.75mm 2mm", fontSize: "9px", color: "#111111", fontWeight: 500, lineHeight: 1.4 }}>
               {product.nomeCampo.texto}
@@ -608,7 +656,7 @@ function getLandscapeInfoBlocks(product: Product): { id: string; node: ReactNode
     blocks.push({
       id: "timbrado",
       node: (
-        <InfoSection title="TIMBRADO">
+        <InfoSection title="TIMBRADO" compact>
           <div style={{ padding: "1mm 2mm", display: "flex", justifyContent: "center" }}>
             <img
               src={product.timbrado.imagem}
@@ -624,7 +672,7 @@ function getLandscapeInfoBlocks(product: Product): { id: string; node: ReactNode
     blocks.push({
       id: "rastreavel",
       node: (
-        <InfoSection title="RASTREÁVEL">
+        <InfoSection title="RASTREÁVEL" compact>
           <div style={{ padding: "1mm 2mm", display: "flex", justifyContent: "center" }}>
             <img
               src={product.rastreavel.imagem}
@@ -741,27 +789,33 @@ function CatalogLandscapeBody({
                   <div key={dim.id}>
                     {dim.titulo ? (
                       <div
+                        className="catalog-dim-title"
                         style={{
                           fontSize: "8px",
                           fontWeight: 700,
                           color: "#111111",
-                          marginBottom: "0.75mm",
+                          marginBottom: "0.6mm",
+                          lineHeight: 1,
                           textTransform: "uppercase",
                           letterSpacing: "0.3px",
                         }}
                       >
-                        {dim.titulo}
-                      </div>
-                    ) : null}
+                            <CatalogHeaderLabel>{dim.titulo}</CatalogHeaderLabel>
+                          </div>
+                        ) : null}
                     <div style={{ display: "flex", flexWrap: "wrap", gap: "2mm", fontSize: "9px", color: "#111111", fontWeight: 500 }}>
                       {dim.largura ? (
-                        <div style={{ padding: "1.5mm 2mm", background: "#eeeeee", borderRadius: "1mm", border: "1px solid #cfcfcf" }}>
-                          <strong>Largura:</strong> {dim.largura} {dim.unidade || "cm"}
+                        <div className="catalog-dim-chip" style={{ padding: "1.5mm 2mm", background: "#eeeeee", borderRadius: "1mm", border: "1px solid #cfcfcf" }}>
+                          <CatalogHeaderLabel>
+                            <strong>Largura:</strong> {dim.largura} {dim.unidade || "cm"}
+                          </CatalogHeaderLabel>
                         </div>
                       ) : null}
                       {dim.altura ? (
-                        <div style={{ padding: "1.5mm 2mm", background: "#eeeeee", borderRadius: "1mm", border: "1px solid #cfcfcf" }}>
-                          <strong>Altura:</strong> {dim.altura} {dim.unidade || "cm"}
+                        <div className="catalog-dim-chip" style={{ padding: "1.5mm 2mm", background: "#eeeeee", borderRadius: "1mm", border: "1px solid #cfcfcf" }}>
+                          <CatalogHeaderLabel>
+                            <strong>Altura:</strong> {dim.altura} {dim.unidade || "cm"}
+                          </CatalogHeaderLabel>
                         </div>
                       ) : null}
                     </div>
@@ -775,30 +829,33 @@ function CatalogLandscapeBody({
         <div style={{ flex: "0 0 26%", minWidth: 0 }}>
           {product.detalhes.length > 0 && (
             <div>
-              <div style={{
-                background: "#2a2a2a", color: "white", padding: "1.5mm 2mm",
-                borderRadius: "1mm 1mm 0 0", fontSize: "8px", fontWeight: 700,
-                textTransform: "uppercase", letterSpacing: "0.4px",
-                minHeight: "5.5mm", display: "flex", alignItems: "center",
-              }}>
-                Detalhes Técnicos
+              <div
+                className="catalog-panel-title"
+                style={{
+                  background: "#2a2a2a", color: "white", padding: "1.5mm 2mm",
+                  borderRadius: "1mm 1mm 0 0", fontSize: "8px", fontWeight: 700,
+                  textTransform: "uppercase", letterSpacing: "0.4px",
+                  minHeight: "5.5mm", display: "flex", alignItems: "center",
+                }}
+              >
+                <CatalogHeaderLabel>Detalhes Técnicos</CatalogHeaderLabel>
               </div>
               <div style={{ border: "1px solid #c0c0c0", borderTop: "none", borderRadius: "0 0 1mm 1mm" }}>
                 {product.detalhes.map((d, i) => (
-                  <div key={d.id} style={{
+                  <div key={d.id} className="catalog-detail-row" style={{
                     padding: "1.75mm 2mm", fontSize: "9px", color: "#111111", lineHeight: 1.4,
                     borderBottom: i < product.detalhes.length - 1 ? "1px solid #e2e2e2" : "none",
-                    display: "flex", alignItems: "flex-start", gap: "1.75mm",
+                    display: "flex", alignItems: "center", gap: "1.75mm",
                   }}>
                     {d.imagem ? (
                       <img
                         src={d.imagem}
                         alt=""
+                        className="catalog-detail-marker"
                         style={{
                           width: "3.5mm",
                           height: "3.5mm",
                           flexShrink: 0,
-                          marginTop: "0.15mm",
                           borderRadius: "50%",
                           objectFit: "cover",
                           border: "1px solid #cfcfcf",
@@ -806,16 +863,9 @@ function CatalogLandscapeBody({
                         }}
                       />
                     ) : (
-                      <div style={{ width: "3.5mm", height: "3.5mm", flexShrink: 0 }}>
-                        <svg width="100%" height="100%" viewBox="0 0 20 20">
-                          <circle cx="10" cy="10" r="10" fill="#f97316" />
-                          <text x="50%" y="50%" dominantBaseline="central" textAnchor="middle" fill="white" fontSize="10" fontWeight="bold" fontFamily="Arial, sans-serif">
-                            {i + 1}
-                          </text>
-                        </svg>
-                      </div>
+                      <CatalogDetailMarker index={i + 1} sizeMm="3.5mm" />
                     )}
-                    <span style={{ lineHeight: 1.4, wordBreak: "break-word", fontWeight: 500, flex: 1, minWidth: 0 }}>{d.texto}</span>
+                    <span className="catalog-detail-label" style={{ lineHeight: 1.4, wordBreak: "break-word", fontWeight: 500, flex: 1, minWidth: 0 }}>{d.texto}</span>
                   </div>
                 ))}
               </div>
@@ -850,13 +900,16 @@ function CatalogLandscapeBody({
 
       {product.imagensDetalhe.length > 0 && (
         <div style={{ marginTop: "3mm" }}>
-          <div style={{
-            background: "#2a2a2a", color: "white", padding: "1.75mm 2.5mm",
-            borderRadius: "1mm 1mm 0 0", fontSize: "10px", fontWeight: 700,
-            textTransform: "uppercase", letterSpacing: "0.45px",
-            minHeight: "6.5mm", display: "flex", alignItems: "center",
-          }}>
-            Detalhes do Produto
+          <div
+            className="catalog-panel-title"
+            style={{
+              background: "#2a2a2a", color: "white", padding: "1.75mm 2.5mm",
+              borderRadius: "1mm 1mm 0 0", fontSize: "10px", fontWeight: 700,
+              textTransform: "uppercase", letterSpacing: "0.45px",
+              minHeight: "6.5mm", display: "flex", alignItems: "center",
+            }}
+          >
+            <CatalogHeaderLabel>Detalhes do Produto</CatalogHeaderLabel>
           </div>
           <div style={{
             border: "1px solid #c0c0c0", borderTop: "none", borderRadius: "0 0 1mm 1mm",
@@ -917,22 +970,40 @@ function CatalogLandscapeBody({
         borderTop: "1px solid #c0c0c0", paddingTop: "1.5mm",
         display: "flex", justifyContent: "space-between", fontSize: "9px", color: "#444444", fontWeight: 500,
       }}>
-        <span>Gerado por Vant Studio — Catálogo Digital</span>
+        <span>Gerado por Vant Studio Catalogo — Catálogo Digital</span>
         <span>{product.referencia}</span>
       </div>
     </>
   );
 }
 
-const InfoSection = ({ title, children }: { title: string; children: React.ReactNode }) => (
+const InfoSection = ({
+  title,
+  children,
+  compact = false,
+}: {
+  title: string;
+  children: React.ReactNode;
+  compact?: boolean;
+}) => (
   <div>
-    <div style={{
-      background: "#ea580c", color: "white", padding: "0 3mm",
-      borderRadius: "1mm 1mm 0 0", fontSize: "9px", fontWeight: 700,
-      textTransform: "uppercase", letterSpacing: "0.45px",
-      display: "flex", alignItems: "center", minHeight: "6.5mm",
-    }}>
-      {title}
+    <div
+      className="catalog-section-title"
+      style={{
+        background: "#ea580c",
+        color: "white",
+        padding: "0 3mm",
+        borderRadius: "1mm 1mm 0 0",
+        fontSize: compact ? "8px" : "9px",
+        fontWeight: 700,
+        textTransform: "uppercase",
+        letterSpacing: "0.45px",
+        minHeight: compact ? "5.5mm" : "6.5mm",
+        display: "flex",
+        alignItems: "center",
+      }}
+    >
+      <CatalogHeaderLabel>{title}</CatalogHeaderLabel>
     </div>
     <div style={{ border: "1px solid #b0b0b0", borderTop: "none", borderRadius: "0 0 1mm 1mm", background: "#fff" }}>
       {children}

@@ -7,6 +7,12 @@ import {
   supabase,
 } from "@/lib/supabase";
 import {
+  checkLoginAllowed,
+  clearLoginAttempts,
+  recordLoginFailure,
+} from "@/lib/security/loginThrottle";
+import { sanitizeForLog, toSafeUserMessage } from "@/lib/security/sanitize";
+import {
   ALL_PERMISSIONS,
   PermissionKey,
   hasUserPermission,
@@ -191,6 +197,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   login: async (email, password) => {
+    const throttle = checkLoginAllowed(email);
+    if (!throttle.allowed) {
+      const minutes = Math.ceil((throttle.retryAfterMs ?? 0) / 60_000);
+      return {
+        success: false,
+        message: `Muitas tentativas. Aguarde ${minutes} minuto(s) e tente novamente.`,
+      };
+    }
+
     try {
       const { data: { user: authUser }, error: loginError } = await supabase.auth.signInWithPassword({
         email,
@@ -198,9 +213,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
 
       if (loginError) {
-        console.error('Falha na tentativa de login no Supabase Auth:', loginError);
-        return { success: false, message: loginError.message };
+        recordLoginFailure(email);
+        console.error('Falha na tentativa de login:', sanitizeForLog(loginError));
+        return {
+          success: false,
+          message: toSafeUserMessage(
+            'Credenciais inválidas. Verifique e-mail e palavra-passe.',
+            loginError.message,
+          ),
+        };
       }
+
+      clearLoginAttempts(email);
 
       if (authUser) {
         // Fetch profile immediately to update state before returning
@@ -211,12 +235,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           .maybeSingle();
 
         if (profileError) {
-          console.error('Erro ao buscar perfil após login:', profileError.message, profileError);
-          return { success: false, message: `Erro no banco de dados: ${profileError.message}` };
+          console.error('Erro ao buscar perfil após login:', sanitizeForLog(profileError));
+          return {
+            success: false,
+            message: toSafeUserMessage(
+              'Não foi possível carregar o seu perfil. Contacte o administrador.',
+              profileError.message,
+            ),
+          };
         }
 
         if (!profile) {
-          console.error('Perfil não encontrado para o ID:', authUser.id);
+          console.error('Perfil não encontrado para utilizador autenticado.');
           return { success: false, message: 'Seu perfil de usuário não foi encontrado. Entre em contato com o suporte.' };
         }
 

@@ -1,4 +1,4 @@
-import { BRAND_ICON_SRC } from "@/brand";
+import { BRAND_LOGO_SRC } from "@/brand";
 import { FileText, Layers, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -228,11 +228,11 @@ export function LoginPromoPanel() {
           </span>
           <div className="inline-flex w-max">
             <img
-              src={BRAND_ICON_SRC}
-              alt=""
-              width={128}
-              height={128}
-              className="h-7 w-auto object-contain object-bottom opacity-90"
+              src={BRAND_LOGO_SRC}
+              alt="Vant Studio"
+              width={200}
+              height={120}
+              className="h-10 w-auto max-w-[8.5rem] object-contain object-bottom opacity-95"
             />
           </div>
           <h2 className="font-['Space_Grotesk',sans-serif] text-xl font-bold leading-snug tracking-tight text-white md:text-[1.35rem]">

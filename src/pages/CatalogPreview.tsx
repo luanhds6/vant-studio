@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ArrowLeft, Download, Eye, Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { applyCatalogPdfAlignment } from "@/lib/catalogPdfAlignment";
 
 const slug = (s: string) =>
   s
@@ -114,10 +115,19 @@ const CatalogPreview = () => {
       const pdfHeight = isLandscape ? 210 : 297;
       const pages = catalogRef.current?.querySelectorAll(".catalog-page");
 
-      if (!pages) throw new Error("Sem páginas");
+      if (!pages?.length) throw new Error("Sem páginas");
+
+      const waitForPaint = () =>
+        new Promise<void>((resolve) => {
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+        });
 
       for (let i = 0; i < pages.length; i++) {
         const pageEl = pages[i] as HTMLElement;
+        pageEl.scrollIntoView({ block: "center", inline: "nearest" });
+        await waitForPaint();
+        await new Promise((r) => setTimeout(r, 120));
+
         const canvas = await html2canvas(pageEl, {
           scale: 2,
           useCORS: true,
@@ -125,12 +135,15 @@ const CatalogPreview = () => {
           logging: false,
           width: pageEl.scrollWidth,
           height: pageEl.scrollHeight,
-          onclone: (clonedDoc) => {
+          onclone: (clonedDoc, clonedPage) => {
             const root = clonedDoc.querySelector(".catalog-pdf-capture-root");
             if (root instanceof HTMLElement) {
               root.style.overflow = "visible";
               root.style.maxHeight = "none";
               root.style.height = "auto";
+            }
+            if (clonedPage instanceof HTMLElement) {
+              applyCatalogPdfAlignment(clonedPage);
             }
           },
         });

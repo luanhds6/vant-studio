@@ -1,12 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
 import type { AuthError } from '@supabase/supabase-js';
+import { getPublicSupabaseConfig, isSupabaseConfigured } from '@/lib/security/env';
 
-const runtime = typeof window !== 'undefined' ? window.__VITE_ENV__ : undefined;
-const supabaseUrl = runtime?.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = runtime?.VITE_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY;
+const { url: supabaseUrl, anonKey: supabaseAnonKey } = getPublicSupabaseConfig();
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('Missing Supabase environment variables. Please check your .env file.');
+if (!isSupabaseConfigured()) {
+  console.error(
+    'Variáveis Supabase em falta. Defina VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY no .env ou no painel de deploy.',
+  );
 }
 
 /** Alinhado ao timeout de escrita de produtos na store; aborta o fetch para não ficar «pendurado» sem rejeitar. */
@@ -38,6 +39,12 @@ function createFetchWithDeadline(baseFetch: typeof fetch, timeoutMs: number): ty
 }
 
 export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '', {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    flowType: 'pkce',
+  },
   global: {
     fetch: createFetchWithDeadline(globalThis.fetch.bind(globalThis), SUPABASE_FETCH_TIMEOUT_MS),
   },

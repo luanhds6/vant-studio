@@ -1,12 +1,31 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
-import { componentTagger } from "lovable-tagger";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(path.resolve(__dirname, "package.json"), "utf-8")) as { version: string };
+
+/** Cabeçalhos de segurança injetados apenas no build de produção (não quebram HMR em dev). */
+function vantSecurityHeaders(): Plugin {
+  return {
+    name: "vant-security-headers",
+    transformIndexHtml: {
+      order: "post",
+      handler(html, ctx) {
+        if (ctx.server) return html;
+        const tags = `
+    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=()" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self';" />
+`;
+        return html.replace("</head>", `${tags}\n  </head>`);
+      },
+    },
+  };
+}
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
@@ -27,7 +46,7 @@ export default defineConfig(({ mode }) => ({
     // Docker / Easypanel: o proxy envia Host=domínio público; sem isso o preview responde "Blocked request".
     allowedHosts: true,
   },
-  plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
+  plugins: [react(), mode === "production" && vantSecurityHeaders()].filter(Boolean),
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

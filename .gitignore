@@ -20,6 +20,15 @@ dist-ssr
 # CLI Supabase local (credenciais / cache)
 supabase/.temp/
 
+# Artefactos Lovable legados e env gerado em deploy (pode conter chaves)
+.lovable/
+dist/env-config.js
+
+# Playwright / e2e (opcional)
+/test-results/
+/playwright-report/
+/blob-report/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

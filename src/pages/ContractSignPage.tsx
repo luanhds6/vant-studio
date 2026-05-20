@@ -200,7 +200,7 @@ export default function ContractSignPage() {
                   <div className="p-1 px-2">
                     <div className="text-[9px] font-bold text-slate-900 truncate leading-tight">{name}</div>
                     <div className="text-[7px] text-slate-600">CPF: {cpf}</div>
-                    <div className="text-[6px] text-slate-400 mt-1">Formalizado via Vant Studio</div>
+                    <div className="text-[6px] text-slate-400 mt-1">Formalizado via Vant Studio Catalogo</div>
                   </div>
                 </div>
               )}

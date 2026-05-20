@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
-import { FLUX_CONSOLE_PREFIX } from "@/lib/globalConsoleErrorReporting";
+import { VANT_CONSOLE_PREFIX } from "@/lib/globalConsoleErrorReporting";
+import { sanitizeForLog } from "@/lib/security/sanitize";
 
 type Props = { children: ReactNode };
 
@@ -22,9 +23,9 @@ export class RootErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
-    console.groupCollapsed(`${FLUX_CONSOLE_PREFIX} React ErrorBoundary`);
-    console.error(error);
-    if (error.stack) console.error("stack:\n", error.stack);
+    console.groupCollapsed(`${VANT_CONSOLE_PREFIX} React ErrorBoundary`);
+    console.error(sanitizeForLog(error));
+    if (error.stack) console.error("stack:\n", sanitizeForLog(error.stack));
     console.error("componentStack:\n", errorInfo.componentStack);
     console.groupEnd();
   }
@@ -37,7 +38,7 @@ export class RootErrorBoundary extends Component<Props, State> {
           <h1 className="text-xl font-semibold">Algo correu mal</h1>
           <p className="max-w-md text-center text-sm text-muted-foreground">
             Os detalhes do erro foram escritos na consola do browser (F12 → Consola). Procure por{" "}
-            <code className="rounded bg-muted px-1 py-0.5 text-xs">{FLUX_CONSOLE_PREFIX}</code>.
+            <code className="rounded bg-muted px-1 py-0.5 text-xs">{VANT_CONSOLE_PREFIX}</code>.
           </p>
           <button
             type="button"

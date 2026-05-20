@@ -53,7 +53,7 @@ export async function stampPdfWithSignature(
     `Nome: ${signerName}`,
     `CPF: ${signerCpf}`,
     `Data: ${new Date(signedAt).toLocaleString('pt-BR')}`,
-    `Formalizado via Vant Studio`
+    `Formalizado via Vant Studio Catalogo`
   ];
 
   details.forEach((text, i) => {

@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useMemo } from "react";
 import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { FLUX_CONSOLE_PREFIX } from "@/lib/globalConsoleErrorReporting";
+import { VANT_CONSOLE_PREFIX } from "@/lib/globalConsoleErrorReporting";
 import { ThemeProvider } from "next-themes";
 import { BrowserRouter, Route, Routes, Navigate, useParams } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -37,7 +37,7 @@ function RouteFallback() {
 
 const queryCache = new QueryCache({
   onError: (error, query) => {
-    console.groupCollapsed(`${FLUX_CONSOLE_PREFIX} React Query — query`);
+    console.groupCollapsed(`${VANT_CONSOLE_PREFIX} React Query — query`);
     console.error("queryKey:", query.queryKey);
     console.error(error);
     if (error instanceof Error && error.stack) console.error(error.stack);
@@ -47,7 +47,7 @@ const queryCache = new QueryCache({
 
 const mutationCache = new MutationCache({
   onError: (error, _variables, _context, mutation) => {
-    console.groupCollapsed(`${FLUX_CONSOLE_PREFIX} React Query — mutation`);
+    console.groupCollapsed(`${VANT_CONSOLE_PREFIX} React Query — mutation`);
     console.error("mutationKey:", mutation.options.mutationKey);
     console.error(error);
     if (error instanceof Error && error.stack) console.error(error.stack);
