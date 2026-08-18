@@ -29,9 +29,9 @@ function normalizeHexForSwatch(hex: string | undefined): string {
 /** Amostra da cor (`hex`) + nome — layout da pré-visualização; nudge no PDF via onclone. */
 function CatalogColorSwatchRow({ c, compact }: { c: ProductColor; compact: boolean }) {
   const fill = normalizeHexForSwatch(c.hex);
-  const sw = compact ? "2.8mm" : "3.2mm";
-  const fontSize = compact ? "8px" : "9px";
-  const gap = compact ? "1mm" : "1.5mm";
+  const sw = compact ? "3.2mm" : "3.8mm";
+  const fontSize = compact ? "9px" : "10.5px";
+  const gap = compact ? "1.2mm" : "1.8mm";
   return (
     <div className="catalog-color-swatch-row" style={{ display: "flex", alignItems: "center", gap }}>
       <div
@@ -42,7 +42,7 @@ function CatalogColorSwatchRow({ c, compact }: { c: ProductColor; compact: boole
           height: sw,
           borderRadius: "50%",
           backgroundColor: fill,
-          border: "1px solid rgba(0,0,0,0.22)",
+          border: "1.5px solid rgba(0,0,0,0.35)",
           flexShrink: 0,
           boxSizing: "border-box",
           WebkitPrintColorAdjust: "exact",
@@ -51,7 +51,7 @@ function CatalogColorSwatchRow({ c, compact }: { c: ProductColor; compact: boole
       />
       <span
         className="catalog-color-label"
-        style={{ fontSize, fontWeight: 600, color: "#111111", lineHeight: 1.25 }}
+        style={{ fontSize, fontWeight: 700, color: "#000000", lineHeight: 1.25 }}
       >
         {c.nome}
       </span>
@@ -104,9 +104,9 @@ export const CatalogPage = ({
     /* Mais espaço em baixo para o rodapé absoluto e galeria «Detalhes do Produto» não ficarem sobrepostos. */
     padding: isLandscape ? "6mm 6mm 12mm 6mm" : "8mm 8mm 18mm 8mm",
     fontFamily: "Inter, Arial, Helvetica, sans-serif",
-    fontSize: isLandscape ? "10px" : "11px",
-    lineHeight: 1.35,
-    color: "#111111",
+    fontSize: isLandscape ? "11px" : "12.5px",
+    lineHeight: 1.45,
+    color: "#000000",
     position: "relative",
     pageBreakAfter: "always",
     boxSizing: "border-box",
@@ -128,14 +128,14 @@ export const CatalogPage = ({
               ) : (
                 <div style={{
                   width: "14mm", height: "14mm", borderRadius: "3mm",
-                  background: "#f97316", display: "flex", alignItems: "center", justifyContent: "center",
+                  background: "#ea580c", display: "flex", alignItems: "center", justifyContent: "center",
                   color: "white", fontWeight: 700, fontSize: "16px", fontFamily: "Space Grotesk, sans-serif",
                 }}>
                   VS
                 </div>
               )}
             </div>
-            <div style={{ fontSize: "9px", color: "#454545", fontWeight: 500, textAlign: "right", lineHeight: 1.4 }}>
+            <div style={{ fontSize: "10.5px", color: "#111111", fontWeight: 700, textAlign: "right", lineHeight: 1.4 }}>
               {product.referencia && <div>Ref: {product.referencia}</div>}
               {product.categoria && <div>{product.categoria}</div>}
             </div>
@@ -143,14 +143,14 @@ export const CatalogPage = ({
 
           {/* Product Name Banner */}
           <div style={{
-            background: "#f97316",
+            background: "#ea580c",
             color: "white",
-            padding: "3mm 5mm",
+            padding: "3.5mm 6mm",
             borderRadius: "2mm",
             marginBottom: "5mm",
             fontFamily: "Space Grotesk, sans-serif",
-            fontWeight: 700,
-            fontSize: "17px",
+            fontWeight: 800,
+            fontSize: "19px",
             textTransform: "uppercase",
             letterSpacing: "0.5px",
           }}>
@@ -162,8 +162,8 @@ export const CatalogPage = ({
             <div style={{ flex: "1.2", minWidth: 0 }}>
               {product.imagemPrincipal ? (
                 <div style={{
-                  border: "1px solid #b8b8b8", borderRadius: "2mm", padding: "3mm",
-                  background: "#f7f7f7", display: "flex", alignItems: "center", justifyContent: "center",
+                  border: "1.5px solid #888888", borderRadius: "2mm", padding: "3mm",
+                  background: "#ffffff", display: "flex", alignItems: "center", justifyContent: "center",
                   minHeight: "80mm",
                 }}>
                   <img
@@ -181,16 +181,16 @@ export const CatalogPage = ({
                 </div>
               ) : (
                 <div style={{
-                  border: "1px dashed #b0b0b0", borderRadius: "2mm", padding: "10mm",
+                  border: "1.5px dashed #888888", borderRadius: "2mm", padding: "10mm",
                   display: "flex", alignItems: "center", justifyContent: "center",
-                  minHeight: "80mm", color: "#555555", fontSize: "12px", fontWeight: 500,
+                  minHeight: "80mm", color: "#111111", fontSize: "13px", fontWeight: 600,
                 }}>
                   Desenho técnico
                 </div>
               )}
 
               {product.dimensoes.some((dim) => dim.largura || dim.altura || dim.titulo) && (
-                <div style={{ marginTop: "3mm", display: "flex", flexDirection: "column", gap: "2.5mm" }}>
+                <div style={{ marginTop: "3.5mm", display: "flex", flexDirection: "column", gap: "2.5mm" }}>
                   {product.dimensoes.map((dim) => {
                     if (!dim.largura && !dim.altura && !dim.titulo) return null;
                     return (
@@ -199,10 +199,10 @@ export const CatalogPage = ({
                           <div
                             className="catalog-dim-title"
                             style={{
-                              fontSize: "9px",
-                              fontWeight: 700,
-                              color: "#111111",
-                              marginBottom: "1mm",
+                              fontSize: "10px",
+                              fontWeight: 800,
+                              color: "#000000",
+                              marginBottom: "1.2mm",
                               textTransform: "uppercase",
                               letterSpacing: "0.35px",
                             }}
@@ -210,16 +210,16 @@ export const CatalogPage = ({
                             <CatalogHeaderLabel>{dim.titulo}</CatalogHeaderLabel>
                           </div>
                         ) : null}
-                        <div style={{ display: "flex", gap: "4mm", fontSize: "10px", color: "#111111", fontWeight: 500, flexWrap: "wrap" }}>
+                        <div style={{ display: "flex", gap: "4mm", fontSize: "11px", color: "#000000", fontWeight: 700, flexWrap: "wrap" }}>
                           {dim.largura ? (
-                            <div className="catalog-dim-chip" style={{ padding: "2mm 3mm", background: "#eeeeee", borderRadius: "1mm", border: "1px solid #cfcfcf" }}>
+                            <div className="catalog-dim-chip" style={{ padding: "2mm 3.5mm", background: "#f8f8f8", borderRadius: "1mm", border: "1.5px solid #888888" }}>
                               <CatalogHeaderLabel>
                                 <strong>Largura:</strong> {dim.largura} {dim.unidade || "cm"}
                               </CatalogHeaderLabel>
                             </div>
                           ) : null}
                           {dim.altura ? (
-                            <div className="catalog-dim-chip" style={{ padding: "2mm 3mm", background: "#eeeeee", borderRadius: "1mm", border: "1px solid #cfcfcf" }}>
+                            <div className="catalog-dim-chip" style={{ padding: "2mm 3.5mm", background: "#f8f8f8", borderRadius: "1mm", border: "1.5px solid #888888" }}>
                               <CatalogHeaderLabel>
                                 <strong>Altura:</strong> {dim.altura} {dim.unidade || "cm"}
                               </CatalogHeaderLabel>
@@ -233,23 +233,23 @@ export const CatalogPage = ({
               )}
 
               {product.detalhes.length > 0 && (
-                <div style={{ marginTop: "4mm" }}>
+                <div style={{ marginTop: "4.5mm" }}>
                   <div
                     className="catalog-panel-title"
                     style={{
-                      background: "#2a2a2a", color: "white", padding: "1.75mm 3mm",
-                      borderRadius: "1mm 1mm 0 0", fontSize: "9px", fontWeight: 700,
+                      background: "#1a1a1a", color: "white", padding: "2mm 3.5mm",
+                      borderRadius: "1mm 1mm 0 0", fontSize: "10px", fontWeight: 800,
                       textTransform: "uppercase", letterSpacing: "0.5px",
-                      minHeight: "6.5mm", display: "flex", alignItems: "center",
+                      minHeight: "7mm", display: "flex", alignItems: "center",
                     }}
                   >
                     <CatalogHeaderLabel>Detalhes Técnicos</CatalogHeaderLabel>
                   </div>
-                  <div style={{ border: "1px solid #c0c0c0", borderTop: "none", borderRadius: "0 0 1mm 1mm" }}>
+                  <div style={{ border: "1.5px solid #777777", borderTop: "none", borderRadius: "0 0 1mm 1mm" }}>
                     {product.detalhes.map((d, i) => (
                       <div key={d.id} className="catalog-detail-row" style={{
-                        padding: "2.25mm 3mm", fontSize: "10px", color: "#111111", lineHeight: 1.4,
-                        borderBottom: i < product.detalhes.length - 1 ? "1px solid #e2e2e2" : "none",
+                        padding: "2.5mm 3.5mm", fontSize: "11px", color: "#000000", lineHeight: 1.45,
+                        borderBottom: i < product.detalhes.length - 1 ? "1.5px solid #dddddd" : "none",
                         display: "flex", alignItems: "center", gap: "2.5mm",
                       }}>
                         {d.imagem ? (
@@ -258,19 +258,19 @@ export const CatalogPage = ({
                             alt=""
                             className="catalog-detail-marker"
                             style={{
-                              width: "4.5mm",
-                              height: "4.5mm",
+                              width: "5mm",
+                              height: "5mm",
                               flexShrink: 0,
                               borderRadius: "50%",
                               objectFit: "cover",
-                              border: "1px solid #cfcfcf",
-                              background: "#f7f7f7",
+                              border: "1.5px solid #888888",
+                              background: "#ffffff",
                             }}
                           />
                         ) : (
-                          <CatalogDetailMarker index={i + 1} sizeMm="4.5mm" />
+                          <CatalogDetailMarker index={i + 1} sizeMm="5mm" />
                         )}
-                        <span className="catalog-detail-label" style={{ flex: 1, minWidth: 0 }}>{d.texto}</span>
+                        <span className="catalog-detail-label" style={{ flex: 1, minWidth: 0, fontWeight: 600 }}>{d.texto}</span>
                       </div>
                     ))}
                   </div>
@@ -281,18 +281,18 @@ export const CatalogPage = ({
             <div style={{ flex: "0.8", display: "flex", flexDirection: "column", gap: "4mm" }}>
               {product.tecido && (
                 <InfoSection title="TECIDO">
-                  <div style={{ padding: "2.25mm 3mm", fontSize: "11px", color: "#111111", fontWeight: 500, lineHeight: 1.4 }}>
+                  <div style={{ padding: "2.5mm 3.5mm", fontSize: "12px", color: "#000000", fontWeight: 600, lineHeight: 1.45 }}>
                     {product.tecido}
                   </div>
                 </InfoSection>
               )}
               {product.tamanhos.length > 0 && (
                 <InfoSection title="TAMANHOS">
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "2mm", padding: "2mm 3mm" }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "2mm", padding: "2.5mm 3.5mm" }}>
                     {product.tamanhos.map((t) => (
                       <span key={t} style={{
-                        padding: "1.25mm 3mm", background: "#eeeeee", borderRadius: "1mm",
-                        fontSize: "10px", fontWeight: 600, color: "#111111", border: "1px solid #cfcfcf",
+                        padding: "1.5mm 3.5mm", background: "#f8f8f8", borderRadius: "1mm",
+                        fontSize: "11px", fontWeight: 700, color: "#000000", border: "1.5px solid #888888",
                       }}>
                         {t}
                       </span>
@@ -302,7 +302,7 @@ export const CatalogPage = ({
               )}
               {product.cores.length > 0 && (
                 <InfoSection title="CORES">
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "2mm", padding: "2mm 3mm", alignItems: "center" }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "2mm", padding: "2.5mm 3.5mm", alignItems: "center" }}>
                     {product.cores.map((c) => (
                       <CatalogColorSwatchRow key={c.id} c={c} compact={false} />
                     ))}
@@ -320,8 +320,8 @@ export const CatalogPage = ({
                       width: "100%",
                       boxSizing: "border-box",
                       height: "38mm",
-                      background: "#f7f7f7",
-                      border: "1px solid #c5c5c5",
+                      background: "#ffffff",
+                      border: "1.5px solid #888888",
                       borderRadius: "1mm",
                     }}>
                       <img
@@ -359,9 +359,9 @@ export const CatalogPage = ({
                           height: "auto",
                           display: "block",
                           objectFit: "contain",
-                          border: "1px solid #c5c5c5",
+                          border: "1.5px solid #888888",
                           borderRadius: "1mm",
-                          background: "#f7f7f7",
+                          background: "#ffffff",
                         }}
                       />
                     </div>
@@ -377,7 +377,7 @@ export const CatalogPage = ({
                 product.nomeCampo.localizacao) && (
                 <InfoSection title="NOME DO CAMPO">
                   {product.nomeCampo.texto && (
-                    <div style={{ padding: "2.25mm 3mm", fontSize: "10px", color: "#111111", fontWeight: 500, lineHeight: 1.4 }}>
+                    <div style={{ padding: "2.5mm 3.5mm", fontSize: "11px", color: "#000000", fontWeight: 600, lineHeight: 1.45 }}>
                       {product.nomeCampo.texto}
                     </div>
                   )}
@@ -399,9 +399,9 @@ export const CatalogPage = ({
                         height: "auto",
                         display: "block",
                         objectFit: "contain",
-                        border: "1px solid #c5c5c5",
+                        border: "1.5px solid #888888",
                         borderRadius: "1mm",
-                        background: "#f7f7f7",
+                        background: "#ffffff",
                       }}
                     />
                   </div>
@@ -420,9 +420,9 @@ export const CatalogPage = ({
                         height: "auto",
                         display: "block",
                         objectFit: "contain",
-                        border: "1px solid #c5c5c5",
+                        border: "1.5px solid #888888",
                         borderRadius: "1mm",
-                        background: "#f7f7f7",
+                        background: "#ffffff",
                       }}
                     />
                   </div>
@@ -436,20 +436,20 @@ export const CatalogPage = ({
               <div
                 className="catalog-panel-title"
                 style={{
-                  background: "#2a2a2a", color: "white", padding: "1.75mm 3mm",
-                  borderRadius: "1mm 1mm 0 0", fontSize: "10px", fontWeight: 700,
+                  background: "#1a1a1a", color: "white", padding: "2mm 3.5mm",
+                  borderRadius: "1mm 1mm 0 0", fontSize: "11px", fontWeight: 800,
                   textTransform: "uppercase", letterSpacing: "0.45px",
-                  minHeight: "6.5mm", display: "flex", alignItems: "center",
+                  minHeight: "7mm", display: "flex", alignItems: "center",
                 }}
               >
                 <CatalogHeaderLabel>Detalhes do Produto</CatalogHeaderLabel>
               </div>
               <div style={{
-                border: "1px solid #c0c0c0", borderTop: "none", borderRadius: "0 0 1mm 1mm",
+                border: "1.5px solid #777777", borderTop: "none", borderRadius: "0 0 1mm 1mm",
                 display: "flex",
                 flexWrap: "wrap",
-                gap: "2.5mm",
-                padding: "2.5mm",
+                gap: "3mm",
+                padding: "3mm",
                 alignItems: "flex-start",
               }}>
                 {product.imagensDetalhe.map((d) => (
@@ -474,17 +474,17 @@ export const CatalogPage = ({
                         margin: "0 auto",
                         display: "block",
                         objectFit: "contain",
-                        border: "1px solid #c5c5c5",
+                        border: "1.5px solid #888888",
                         borderRadius: "1mm",
-                        background: "#f7f7f7",
+                        background: "#ffffff",
                       }}
                     />
                     <div
                       style={{
-                        fontSize: "9px",
-                        marginTop: "1.25mm",
-                        color: "#1a1a1a",
-                        fontWeight: 600,
+                        fontSize: "10px",
+                        marginTop: "1.5mm",
+                        color: "#000000",
+                        fontWeight: 700,
                         lineHeight: 1.35,
                         wordBreak: "break-word",
                         overflowWrap: "break-word",
@@ -500,8 +500,8 @@ export const CatalogPage = ({
 
           <div style={{
             position: "absolute", bottom: "5mm", left: "8mm", right: "8mm",
-            borderTop: "1px solid #c0c0c0", paddingTop: "2mm",
-            display: "flex", justifyContent: "space-between", fontSize: "9px", color: "#444444", fontWeight: 500,
+            borderTop: "1.5px solid #888888", paddingTop: "2mm",
+            display: "flex", justifyContent: "space-between", fontSize: "10px", color: "#111111", fontWeight: 700,
           }}>
             <span>Gerado por Vant Studio Catalogo — Catálogo Digital</span>
             <span>{product.referencia}</span>
@@ -994,18 +994,18 @@ const InfoSection = ({
         color: "white",
         padding: "0 3mm",
         borderRadius: "1mm 1mm 0 0",
-        fontSize: compact ? "8px" : "9px",
-        fontWeight: 700,
+        fontSize: compact ? "9px" : "10px",
+        fontWeight: 800,
         textTransform: "uppercase",
         letterSpacing: "0.45px",
-        minHeight: compact ? "5.5mm" : "6.5mm",
+        minHeight: compact ? "6mm" : "7mm",
         display: "flex",
         alignItems: "center",
       }}
     >
       <CatalogHeaderLabel>{title}</CatalogHeaderLabel>
     </div>
-    <div style={{ border: "1px solid #b0b0b0", borderTop: "none", borderRadius: "0 0 1mm 1mm", background: "#fff" }}>
+    <div style={{ border: "1.5px solid #888888", borderTop: "none", borderRadius: "0 0 1mm 1mm", background: "#fff" }}>
       {children}
     </div>
   </div>
@@ -1018,12 +1018,12 @@ const InfoRow = ({ label, value }: { label: string; value: string }) => {
       display: "flex", justifyContent: "space-between", alignItems: "baseline",
       gap: "2mm",
       padding: "2mm 3mm",
-      fontSize: "10px",
-      lineHeight: 1.4,
-      borderBottom: "1px solid #e8e8e8",
+      fontSize: "11px",
+      lineHeight: 1.45,
+      borderBottom: "1px solid #cccccc",
     }}>
-      <span style={{ color: "#333333", fontWeight: 700, flexShrink: 0 }}>{label}:</span>
-      <span style={{ fontWeight: 600, color: "#0a0a0a", textAlign: "right" }}>{value}</span>
+      <span style={{ color: "#000000", fontWeight: 800, flexShrink: 0 }}>{label}:</span>
+      <span style={{ fontWeight: 700, color: "#000000", textAlign: "right" }}>{value}</span>
     </div>
   );
 };

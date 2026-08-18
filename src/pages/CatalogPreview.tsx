@@ -11,7 +11,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { ArrowLeft, Download, Eye, Loader2 } from "lucide-react";
+import { ProgressBar } from "@/components/ui/progress-bar";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { ArrowLeft, Download, Eye, Loader2, LayoutGrid, List, ChevronLeft, ChevronRight, Maximize2, Minimize2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { applyCatalogPdfAlignment } from "@/lib/catalogPdfAlignment";
 
@@ -63,9 +65,14 @@ const CatalogPreview = () => {
   const [mounted, setMounted] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [generating, setGenerating] = useState(false);
+  const [progressValue, setProgressValue] = useState(0);
   const [showPreview, setShowPreview] = useState(false);
+  const [viewMode, setViewMode] = useState<"list" | "grid">("grid");
+  const [isProductsExpanded, setIsProductsExpanded] = useState(true);
+  const [activeZoomedProduct, setActiveZoomedProduct] = useState<any | null>(null);
+  const [previewLayout, setPreviewLayout] = useState<"list" | "grid">("grid");
   const [catalogOrientation, setCatalogOrientation] = useState<CatalogOrientation>("portrait");
-  const catalogRef = useRef<HTMLDivElement>(null);
+  const captureRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -100,9 +107,10 @@ const CatalogPreview = () => {
     }
 
     setGenerating(true);
-    setShowPreview(true);
+    setProgressValue(0);
 
-    await new Promise((r) => setTimeout(r, 500));
+    // Initial delay to make sure rendering is prepared
+    await new Promise((r) => setTimeout(r, 300));
 
     try {
       const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
@@ -113,7 +121,7 @@ const CatalogPreview = () => {
       const pdf = new jsPDF(isLandscape ? "l" : "p", "mm", "a4");
       const pdfWidth = isLandscape ? 297 : 210;
       const pdfHeight = isLandscape ? 210 : 297;
-      const pages = catalogRef.current?.querySelectorAll(".catalog-page");
+      const pages = captureRef.current?.querySelectorAll(".catalog-page");
 
       if (!pages?.length) throw new Error("Sem páginas");
 
@@ -122,12 +130,15 @@ const CatalogPreview = () => {
           requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
         });
 
-      for (let i = 0; i < pages.length; i++) {
-        const pageEl = pages[i] as HTMLElement;
-        pageEl.scrollIntoView({ block: "center", inline: "nearest" });
-        await waitForPaint();
-        await new Promise((r) => setTimeout(r, 120));
+      // Wait once for the entire container to render and paint
+      await waitForPaint();
 
+      // Process pages in concurrent batches of 3 to speed up html2canvas rendering
+      const results: { index: number; imgData: string; width: number; height: number }[] = new Array(pages.length);
+      const batchSize = 3;
+      let completedCount = 0;
+
+      const capturePage = async (pageEl: HTMLElement, pageIndex: number) => {
         const canvas = await html2canvas(pageEl, {
           scale: 2,
           useCORS: true,
@@ -148,8 +159,40 @@ const CatalogPreview = () => {
           },
         });
 
-        const imgData = canvas.toDataURL("image/jpeg", 1.0);
-        const { x, y, w, h } = fitCanvasToPdfPage(canvas.width, canvas.height, pdfWidth, pdfHeight);
+        // 0.95 quality reduces size and speeds up encoding dramatically with no visible quality loss
+        const imgData = canvas.toDataURL("image/jpeg", 0.95);
+        completedCount++;
+        setProgressValue((completedCount / pages.length) * 100);
+
+        return {
+          index: pageIndex,
+          imgData,
+          width: canvas.width,
+          height: canvas.height,
+        };
+      };
+
+      for (let i = 0; i < pages.length; i += batchSize) {
+        const batchPromises: Promise<any>[] = [];
+        const slice = Array.from(pages).slice(i, i + batchSize);
+
+        for (let j = 0; j < slice.length; j++) {
+          const pageIndex = i + j;
+          const pageEl = slice[j] as HTMLElement;
+          batchPromises.push(
+            capturePage(pageEl, pageIndex).then((res) => {
+              results[pageIndex] = res;
+            })
+          );
+        }
+
+        await Promise.all(batchPromises);
+      }
+
+      // Add pages sequentially in correct order to the PDF
+      for (let i = 0; i < results.length; i++) {
+        const { imgData, width, height } = results[i];
+        const { x, y, w, h } = fitCanvasToPdfPage(width, height, pdfWidth, pdfHeight);
 
         if (i > 0) pdf.addPage("a4", isLandscape ? "l" : "p");
         pdf.addImage(imgData, "JPEG", x, y, w, h);
@@ -210,7 +253,17 @@ const CatalogPreview = () => {
             </ToggleGroup>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => setShowPreview(!showPreview)} disabled={selectedProducts.length === 0}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                const next = !showPreview;
+                setShowPreview(next);
+                if (next) {
+                  setIsProductsExpanded(false);
+                }
+              }}
+              disabled={selectedProducts.length === 0}
+            >
               <Eye className="mr-2 h-4 w-4" />
               {showPreview ? "Ocultar" : "Pré-visualizar"}
             </Button>
@@ -221,6 +274,12 @@ const CatalogPreview = () => {
           </div>
         </div>
       </div>
+
+      {generating && (
+        <div className="pt-2 pb-2">
+          <ProgressBar value={progressValue} label="Preparando e gerando o PDF..." />
+        </div>
+      )}
 
       {products.length === 0 ? (
         <Card className="border-dashed">
@@ -238,79 +297,214 @@ const CatalogPreview = () => {
           </CardContent>
         </Card>
       ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex flex-col gap-2 text-lg sm:flex-row sm:items-center sm:justify-between">
-              <span>
-                Produtos ({selected.length}/{products.length} selecionados)
-              </span>
-              <div className="flex flex-wrap gap-2">
-                <Button variant="ghost" size="sm" onClick={() => setSelected(products.map((p) => p.id))}>
-                  Catálogo completo
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => setSelected([])}>
-                  Limpar seleção
-                </Button>
+        <Card className="overflow-hidden">
+          <CardHeader
+            className="cursor-pointer hover:bg-muted/30 transition-colors select-none"
+            onClick={() => setIsProductsExpanded(!isProductsExpanded)}
+          >
+            <CardTitle className="flex flex-col gap-3 text-lg sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2">
+                <span>Produtos ({selected.length}/{products.length} selecionados)</span>
+                <span className="text-xs font-normal text-muted-foreground">
+                  {isProductsExpanded ? "(Clique para recolher)" : "(Clique para expandir)"}
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                {isProductsExpanded && (
+                  <>
+                    <ToggleGroup
+                      type="single"
+                      variant="outline"
+                      value={viewMode}
+                      onValueChange={(v) => {
+                        if (v === "list" || v === "grid") setViewMode(v);
+                      }}
+                      className="mr-2"
+                    >
+                      <ToggleGroupItem value="grid" aria-label="Grade" className="h-8 w-8 p-0">
+                        <LayoutGrid className="h-4 w-4" />
+                      </ToggleGroupItem>
+                      <ToggleGroupItem value="list" aria-label="Lista" className="h-8 w-8 p-0">
+                        <List className="h-4 w-4" />
+                      </ToggleGroupItem>
+                    </ToggleGroup>
+                    <Button variant="ghost" size="sm" onClick={() => setSelected(products.map((p) => p.id))}>
+                      Catálogo completo
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => setSelected([])}>
+                      Limpar seleção
+                    </Button>
+                  </>
+                )}
               </div>
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <p className="mb-3 text-xs text-muted-foreground">
-              Use «Catálogo completo» para todas as páginas no PDF, ou desmarque itens para gerar só os produtos escolhidos.
-            </p>
-            <div className="space-y-2">
-              {products.map((p) => (
-                <label
-                  key={p.id}
-                  className="flex cursor-pointer items-center gap-3 rounded-lg p-3 transition-colors hover:bg-muted/50"
-                >
-                  <Checkbox checked={selected.includes(p.id)} onCheckedChange={() => toggleProduct(p.id)} />
-                  {p.imagemPrincipal && (
-                    <img
-                      src={p.imagemPrincipal}
-                      alt=""
-                      className="h-10 w-10 rounded border object-contain"
-                      loading="lazy"
-                      decoding="async"
-                    />
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate font-medium">{p.nome}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {p.referencia && `Ref: ${p.referencia} · `}
-                      {p.categoria}
+          {isProductsExpanded && (
+            <CardContent>
+              <p className="mb-3 text-xs text-muted-foreground">
+                Use «Catálogo completo» para todas as páginas no PDF, ou desmarque itens para gerar só os produtos escolhidos.
+              </p>
+              <div className={cn(
+                viewMode === "grid"
+                  ? "grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6"
+                  : "space-y-2"
+              )}>
+                {products.map((p) => {
+                  const isSelected = selected.includes(p.id);
+                  return viewMode === "grid" ? (
+                    <div
+                      key={p.id}
+                      onClick={() => toggleProduct(p.id)}
+                      className={cn(
+                        "relative flex flex-col items-center justify-between rounded-xl border p-4 text-center cursor-pointer transition-all hover:bg-muted/50 select-none",
+                        isSelected ? "border-primary bg-primary/5 shadow-sm" : "border-border bg-card"
+                      )}
+                    >
+                      <div className="absolute top-3 left-3" onClick={(e) => e.stopPropagation()}>
+                        <Checkbox checked={isSelected} onCheckedChange={() => toggleProduct(p.id)} />
+                      </div>
+                      {p.imagemPrincipal ? (
+                        <img
+                          src={p.imagemPrincipal}
+                          alt=""
+                          className="h-20 w-20 rounded object-contain mb-2"
+                          loading="lazy"
+                          decoding="async"
+                        />
+                      ) : (
+                        <div className="h-20 w-20 rounded bg-muted flex items-center justify-center mb-2 text-[10px] text-muted-foreground">Sem imagem</div>
+                      )}
+                      <div className="min-w-0 w-full space-y-1">
+                        <div className="truncate font-semibold text-xs">{p.nome}</div>
+                        <div className="text-[10px] text-muted-foreground truncate">
+                          {p.referencia ? `Ref: ${p.referencia}` : `Ref: -`}
+                        </div>
+                        <div className="text-[10px] text-muted-foreground truncate">{p.categoria}</div>
+                      </div>
+                      <div className="flex gap-1 mt-2 justify-center flex-wrap">
+                        {p.cores.slice(0, 4).map((c) => (
+                          <div key={c.id} className="h-2.5 w-2.5 rounded-full border border-black/10" style={{ backgroundColor: c.hex }} />
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex gap-1">
-                    {p.cores.slice(0, 4).map((c) => (
-                      <div key={c.id} className="h-4 w-4 rounded-full border" style={{ backgroundColor: c.hex }} />
-                    ))}
-                  </div>
-                </label>
-              ))}
-            </div>
-          </CardContent>
+                  ) : (
+                    <div
+                      key={p.id}
+                      onClick={() => toggleProduct(p.id)}
+                      className={cn(
+                        "flex cursor-pointer items-center gap-3 rounded-lg p-3 border transition-colors hover:bg-muted/50 select-none",
+                        isSelected ? "border-primary bg-primary/5" : "border-transparent bg-card"
+                      )}
+                    >
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <Checkbox checked={isSelected} onCheckedChange={() => toggleProduct(p.id)} />
+                      </div>
+                      {p.imagemPrincipal && (
+                        <img
+                          src={p.imagemPrincipal}
+                          alt=""
+                          className="h-10 w-10 rounded border object-contain"
+                          loading="lazy"
+                          decoding="async"
+                        />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate font-medium text-sm">{p.nome}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {p.referencia && `Ref: ${p.referencia} · `}
+                          {p.categoria}
+                        </div>
+                      </div>
+                      <div className="flex gap-1">
+                        {p.cores.slice(0, 4).map((c) => (
+                          <div key={c.id} className="h-4 w-4 rounded-full border" style={{ backgroundColor: c.hex }} />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          )}
         </Card>
       )}
 
       {showPreview && selectedProducts.length > 0 && (
         <div className="space-y-4">
-          <h2 className="text-xl font-semibold">
-            Pré-visualização — {catalogOrientation === "landscape" ? "A4 paisagem" : "A4 retrato"}
-          </h2>
-          <div className="catalog-pdf-capture-root overflow-auto rounded-xl border bg-muted/30 p-4">
-            <div ref={catalogRef} className="flex flex-col items-center gap-6">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="text-xl font-semibold">
+              Pré-visualização — {catalogOrientation === "landscape" ? "A4 paisagem" : "A4 retrato"}
+            </h2>
+            <ToggleGroup
+              type="single"
+              variant="outline"
+              value={previewLayout}
+              onValueChange={(v) => {
+                if (v === "list" || v === "grid") setPreviewLayout(v as "list" | "grid");
+              }}
+              className="justify-end"
+            >
+              <ToggleGroupItem value="grid" aria-label="Grade de Folhas" className="text-xs gap-1.5 py-1 px-3">
+                <LayoutGrid className="h-3.5 w-3.5" /> Grade de Folhas
+              </ToggleGroupItem>
+              <ToggleGroupItem value="list" aria-label="Folha a Folha" className="text-xs gap-1.5 py-1 px-3">
+                <List className="h-3.5 w-3.5" /> Folha a Folha (Grande)
+              </ToggleGroupItem>
+            </ToggleGroup>
+          </div>
+
+          {previewLayout === "grid" ? (
+            <div className="rounded-xl border bg-muted/30 p-6">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6 justify-items-center">
+                {selectedProducts.map((product) => {
+                  const isLandscape = catalogOrientation === "landscape";
+                  const pageW = isLandscape ? 297 : 210;
+                  const pageH = isLandscape ? 210 : 297;
+                  const scale = 0.22; // Miniaturized preview scale
+
+                  return (
+                    <div
+                      key={product.id}
+                      onClick={() => setActiveZoomedProduct(product)}
+                      style={{
+                        width: `${pageW * scale}mm`,
+                        height: `${pageH * scale}mm`,
+                      }}
+                      className="group relative cursor-pointer overflow-hidden rounded-lg border border-border shadow-md bg-white transition-all duration-300 origin-center hover:scale-110 hover:shadow-2xl hover:z-10"
+                    >
+                      <div
+                        className="pointer-events-none origin-top-left"
+                        style={{
+                          transform: `scale(${scale})`,
+                          width: `${pageW}mm`,
+                          height: `${pageH}mm`,
+                        }}
+                      >
+                        <CatalogPage product={product} settings={settings} orientation={catalogOrientation} />
+                      </div>
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+                        <span className="text-white text-[10px] font-semibold flex items-center gap-1 bg-black/75 px-2.5 py-1 rounded-full">
+                          <Eye className="h-3 w-3" /> Ampliar
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <div className="catalog-pdf-capture-root overflow-auto rounded-xl border bg-muted/30 p-6 flex flex-col items-center gap-8">
               {selectedProducts.map((product) => (
-                <div key={product.id} className="shadow-lg">
+                <div key={product.id} className="shadow-xl bg-white rounded-lg border border-border overflow-hidden">
                   <CatalogPage product={product} settings={settings} orientation={catalogOrientation} />
                 </div>
               ))}
             </div>
-          </div>
+          )}
         </div>
       )}
 
-      {!showPreview && generating && (
+      {generating && (
         <div
           style={{
             position: "absolute",
@@ -319,7 +513,7 @@ const CatalogPreview = () => {
             width: catalogOrientation === "landscape" ? "297mm" : "210mm",
           }}
         >
-          <div ref={catalogRef} style={{ width: catalogOrientation === "landscape" ? "297mm" : "210mm" }}>
+          <div ref={captureRef} style={{ width: catalogOrientation === "landscape" ? "297mm" : "210mm" }}>
             {selectedProducts.map((product) => (
               <CatalogPage
                 key={product.id}
@@ -331,8 +525,138 @@ const CatalogPreview = () => {
           </div>
         </div>
       )}
+
+      <ModalPreviewDialog
+        products={selectedProducts}
+        initialIndex={selectedProducts.findIndex((p) => p.id === activeZoomedProduct?.id)}
+        settings={settings}
+        orientation={catalogOrientation}
+        onClose={() => setActiveZoomedProduct(null)}
+      />
     </div>
   );
 };
+
+// Hook to track window size for dynamic scaling
+function useWindowSize() {
+  const [size, setSize] = useState({ width: 1200, height: 800 });
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleResize = () => {
+      setSize({ width: window.innerWidth, height: window.innerHeight });
+    };
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+  return size;
+}
+
+interface ModalPreviewDialogProps {
+  products: any[];
+  initialIndex: number;
+  settings: any;
+  orientation: CatalogOrientation;
+  onClose: () => void;
+}
+
+function ModalPreviewDialog({ products, initialIndex, settings, orientation, onClose }: ModalPreviewDialogProps) {
+  const [currentIndex, setCurrentIndex] = useState(initialIndex);
+
+  // Sync state with open item index
+  useEffect(() => {
+    setCurrentIndex(initialIndex);
+  }, [initialIndex]);
+
+  const { width: winW, height: winH } = useWindowSize();
+
+  // Listen to keyboard left/right arrow keys
+  useEffect(() => {
+    if (initialIndex === -1 || products.length === 0) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "ArrowLeft") {
+        setCurrentIndex((prev) => (prev > 0 ? prev - 1 : products.length - 1));
+      } else if (e.key === "ArrowRight") {
+        setCurrentIndex((prev) => (prev < products.length - 1 ? prev + 1 : 0));
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [initialIndex, products.length]);
+
+  if (initialIndex === -1 || products.length === 0) return null;
+
+  const product = products[currentIndex];
+  const isLandscape = orientation === "landscape";
+  const a4W = isLandscape ? 297 : 210;
+  const a4H = isLandscape ? 210 : 297;
+
+  // Use larger bounds to reduce horizontal/vertical purple margins
+  const maxW = winW * 0.84; // Leave 8% on each side for prev/next buttons
+  const maxH = winH * 0.94; // Use 94% of vertical viewport height
+
+  const a4Wpx = a4W * 3.7795;
+  const a4Hpx = a4H * 3.7795;
+
+  const scaleX = maxW / a4Wpx;
+  const scaleY = maxH / a4Hpx;
+
+  const modalScale = Math.min(1, scaleX, scaleY);
+
+  const handlePrev = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCurrentIndex((prev) => (prev > 0 ? prev - 1 : products.length - 1));
+  };
+
+  const handleNext = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCurrentIndex((prev) => (prev < products.length - 1 ? prev + 1 : 0));
+  };
+
+  return (
+    <Dialog open={initialIndex !== -1} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-[98vw] max-h-[98vh] p-0 bg-slate-950/92 border-0 flex items-center justify-center overflow-hidden outline-none">
+        
+        {/* Relative wrapper for page + buttons */}
+        <div className="relative flex items-center justify-center pt-4 pb-4">
+          
+          {/* Left Arrow Button */}
+          <button
+            onClick={handlePrev}
+            className="absolute left-2 md:-left-16 top-1/2 -translate-y-1/2 flex h-12 w-12 items-center justify-center rounded-full bg-black/50 border border-white/20 text-white hover:bg-black/70 transition-all z-50 outline-none hover:scale-105 active:scale-95 shadow-lg animate-fade-in"
+            title="Página anterior (Seta Esquerda)"
+          >
+            <ChevronLeft className="h-6 w-6" />
+          </button>
+
+          {/* Zoomed Page container */}
+          <div
+            style={{
+              width: `${a4W * modalScale}mm`,
+              maxHeight: "90vh",
+            }}
+            className="bg-white rounded-lg shadow-2xl overflow-x-hidden overflow-y-auto [scrollbar-width:thin] transition-all duration-300"
+          >
+            <div style={{ zoom: modalScale, width: `${a4W}mm` }}>
+              <CatalogPage product={product} settings={settings} orientation={orientation} />
+            </div>
+          </div>
+
+          {/* Right Arrow Button */}
+          <button
+            onClick={handleNext}
+            className="absolute right-2 md:-right-16 top-1/2 -translate-y-1/2 flex h-12 w-12 items-center justify-center rounded-full bg-black/50 border border-white/20 text-white hover:bg-black/70 transition-all z-50 outline-none hover:scale-105 active:scale-95 shadow-lg animate-fade-in"
+            title="Próxima página (Seta Direita)"
+          >
+            <ChevronRight className="h-6 w-6" />
+          </button>
+          
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 export default CatalogPreview;

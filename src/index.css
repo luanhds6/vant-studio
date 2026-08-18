@@ -208,7 +208,6 @@
       radial-gradient(ellipse 55% 45% at 15% 25%, hsl(210 80% 88% / 0.55), transparent 55%),
       radial-gradient(ellipse 50% 40% at 85% 15%, hsl(270 70% 90% / 0.45), transparent 50%),
       radial-gradient(ellipse 45% 35% at 70% 85%, hsl(28 95% 86% / 0.5), transparent 55%);
-    animation: vant-drift-blobs 22s ease-in-out infinite;
   }
 
   .vant-app-bg::after {

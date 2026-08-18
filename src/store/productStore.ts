@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist, createJSONStorage, type StateStorage } from "zustand/middleware";
 import { supabase } from "@/lib/supabase";
 import { withTimeout } from "@/lib/withTimeout";
 import { Product, CompanySettings, Hospital, type BaseColor } from "@/types/Product";
@@ -259,7 +260,68 @@ function scheduleRealtimeRefetch(get: () => ProductStore) {
   }, REALTIME_DEBOUNCE_MS);
 }
 
-export const useProductStore = create<ProductStore>((set, get) => ({
+const indexedDBStorage: StateStorage = {
+  getItem: async (name: string): Promise<string | null> => {
+    return new Promise((resolve) => {
+      const request = indexedDB.open("vant-studio-db", 1);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains("store")) {
+          db.createObjectStore("store");
+        }
+      };
+      request.onsuccess = () => {
+        const db = request.result;
+        const transaction = db.transaction("store", "readonly");
+        const objectStore = transaction.objectStore("store");
+        const getRequest = objectStore.get(name);
+        getRequest.onsuccess = () => {
+          resolve((getRequest.result as string) || null);
+        };
+        getRequest.onerror = () => resolve(null);
+      };
+      request.onerror = () => resolve(null);
+    });
+  },
+  setItem: async (name: string, value: string): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open("vant-studio-db", 1);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains("store")) {
+          db.createObjectStore("store");
+        }
+      };
+      request.onsuccess = () => {
+        const db = request.result;
+        const transaction = db.transaction("store", "readwrite");
+        const objectStore = transaction.objectStore("store");
+        const putRequest = objectStore.put(value, name);
+        putRequest.onsuccess = () => resolve();
+        putRequest.onerror = () => reject(putRequest.error);
+      };
+      request.onerror = () => reject(request.error);
+    });
+  },
+  removeItem: async (name: string): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open("vant-studio-db", 1);
+      request.onsuccess = () => {
+        const db = request.result;
+        const transaction = db.transaction("store", "readwrite");
+        const objectStore = transaction.objectStore("store");
+        const deleteRequest = objectStore.delete(name);
+        deleteRequest.onsuccess = () => resolve();
+        deleteRequest.onerror = () => reject(deleteRequest.error);
+      };
+      request.onerror = () => reject(request.error);
+    });
+  },
+};
+
+export const useProductStore = create<ProductStore>()(
+  persist(
+    (set, get) => ({
   hospitals: [],
   products: [],
   colors: [],
@@ -793,4 +855,18 @@ export const useProductStore = create<ProductStore>((set, get) => ({
       isLoading: false,
     });
   },
-}));
+    }),
+    {
+      name: "vant-product-storage",
+      storage: createJSONStorage(() => indexedDBStorage),
+      partialize: (state) => ({
+        hospitals: state.hospitals,
+        products: state.products,
+        colors: state.colors,
+        industries: state.industries,
+        fabricTypes: state.fabricTypes,
+        settings: state.settings,
+      }),
+    }
+  )
+);

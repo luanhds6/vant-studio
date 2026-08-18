@@ -1,5 +1,8 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useMemo } from "react";
-import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ProgressBar } from "@/components/ui/progress-bar";
+import { MutationCache, QueryCache, QueryClient } from "@tanstack/react-query";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
+import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
 import { VANT_CONSOLE_PREFIX } from "@/lib/globalConsoleErrorReporting";
 import { ThemeProvider } from "next-themes";
 import { BrowserRouter, Route, Routes, Navigate, useParams } from "react-router-dom";
@@ -60,11 +63,15 @@ const queryClient = new QueryClient({
   mutationCache,
   defaultOptions: {
     queries: {
-      staleTime: 60_000,
-      gcTime: 5 * 60_000,
+      staleTime: 5 * 60_000, // 5 minutes
+      gcTime: 1000 * 60 * 60 * 24, // 24 hours
       refetchOnWindowFocus: false,
     },
   },
+});
+
+const persister = createSyncStoragePersister({
+  storage: typeof window !== 'undefined' ? window.localStorage : undefined,
 });
 
 const RequirePermission = ({
@@ -150,10 +157,8 @@ const App = () => {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,hsl(210_90%_88%/0.35),transparent_50%)] dark:bg-[radial-gradient(circle_at_30%_20%,hsl(260_40%_30%/0.25),transparent_50%)]" />
         <div className="relative flex w-full max-w-sm flex-col gap-4 rounded-2xl border border-white/60 bg-white/92 p-8 shadow-xl shadow-slate-200/50 dark:border-white/10 dark:bg-slate-900/85 dark:shadow-black/40 md:bg-white/70 md:backdrop-blur-xl md:dark:bg-slate-900/60">
           <div className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          <div className="space-y-2">
-            <div className="h-3 w-3/4 animate-pulse rounded-lg bg-muted/80" />
-            <div className="h-3 w-1/2 animate-pulse rounded-lg bg-muted/60" />
-            <div className="h-3 w-[82%] animate-pulse rounded-lg bg-muted/50" />
+          <div className="w-full pt-4">
+            <ProgressBar indeterminate label="Carregando o sistema..." />
           </div>
         </div>
       </div>
@@ -161,7 +166,7 @@ const App = () => {
   }
 
   return (
-    <QueryClientProvider client={queryClient}>
+    <PersistQueryClientProvider client={queryClient} persistOptions={{ persister }}>
       <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} storageKey="vant-ui-theme">
         <TooltipProvider>
           <Toaster />
@@ -270,7 +275,7 @@ const App = () => {
           </BrowserRouter>
         </TooltipProvider>
       </ThemeProvider>
-    </QueryClientProvider>
+    </PersistQueryClientProvider>
   );
 };
 

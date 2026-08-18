@@ -11,21 +11,17 @@ const parallelOffsets = [0, -5, -10, -16, -22] as const;
 
 function DarkWaves() {
   return (
-    <div className="hidden dark:block absolute inset-0 will-change-transform animate-vant-login-wave-aurora">
+    <div className="hidden dark:block absolute inset-0 will-change-transform">
       <div className="absolute bottom-0 left-0 h-full w-full animate-vant-login-wave-drift-1">
         <svg className="h-full w-full" viewBox="-60 -10 580 220" preserveAspectRatio="none">
           <defs>
             <linearGradient id="sysWaveADark" x1="0%" y1="50%" x2="100%" y2="50%">
-              <stop offset="0%" stopColor="#0a1628">
-                <animate attributeName="stop-color" dur="6s" repeatCount="indefinite" values="#0a1628;#0f2540;#0a1628;#0a1628" />
-              </stop>
-              <stop offset="50%" stopColor="#2bb0ff" stopOpacity="0.9">
-                <animate attributeName="stop-color" dur="5s" repeatCount="indefinite" values="#2da3ff;#4ae8ff;#60a5fa;#2da3ff" />
-              </stop>
+              <stop offset="0%" stopColor="#0a1628" />
+              <stop offset="50%" stopColor="#2bb0ff" stopOpacity="0.9" />
               <stop offset="100%" stopColor="#0d2347" stopOpacity="0.45" />
             </linearGradient>
           </defs>
-          {parallelOffsets.map((oy, i) => (
+          {parallelOffsets.slice(0, 3).map((oy, i) => (
             <g key={`sys-ad-${oy}`} transform={`translate(0 ${oy})`}>
               <path fill="none" stroke="url(#sysWaveADark)" strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.1 - i * 0.08} opacity={0.5 - i * 0.06} d={RIBBON_A} />
             </g>
@@ -38,9 +34,7 @@ function DarkWaves() {
           <defs>
             <linearGradient id="sysWaveBDark" x1="0%" y1="0%" x2="100%" y2="0%">
               <stop offset="0%" stopColor="#0f2952" stopOpacity="0.75" />
-              <stop offset="50%" stopColor="#22d3ee" stopOpacity="0.6">
-                <animate attributeName="stop-color" dur="4s" repeatCount="indefinite" values="#22d3ee;#3b82f6;#67e8f9;#22d3ee" />
-              </stop>
+              <stop offset="50%" stopColor="#22d3ee" stopOpacity="0.6" />
               <stop offset="100%" stopColor="#0d2347" stopOpacity="0.35" />
             </linearGradient>
           </defs>
@@ -58,9 +52,7 @@ function DarkWaves() {
           <defs>
             <linearGradient id="sysWaveCDark" x1="0%" y1="100%" x2="100%" y2="0%">
               <stop offset="0%" stopColor="#172554" stopOpacity="0.5" />
-              <stop offset="50%" stopColor="#a5d7ff" stopOpacity="0.9">
-                <animate attributeName="stop-opacity" dur="3s" repeatCount="indefinite" values="0.5;0.95;0.6;0.5" />
-              </stop>
+              <stop offset="50%" stopColor="#a5d7ff" stopOpacity="0.8" />
               <stop offset="100%" stopColor="#0ea5e9" stopOpacity="0.45" />
             </linearGradient>
           </defs>
@@ -76,21 +68,17 @@ function DarkWaves() {
 
 function LightWaves() {
   return (
-    <div className="block dark:hidden absolute inset-0 will-change-transform animate-vant-login-wave-aurora">
+    <div className="block dark:hidden absolute inset-0 will-change-transform">
       <div className="absolute bottom-0 left-0 h-full w-full animate-vant-login-wave-drift-1">
         <svg className="h-full w-full" viewBox="-60 -10 580 220" preserveAspectRatio="none">
           <defs>
             <linearGradient id="sysWaveALight" x1="0%" y1="50%" x2="100%" y2="50%">
-              <stop offset="0%" stopColor="#cbd5e1" stopOpacity="0.5">
-                <animate attributeName="stop-color" dur="6s" repeatCount="indefinite" values="#cbd5e1;#94a3b8;#cbd5e1;#cbd5e1" />
-              </stop>
-              <stop offset="50%" stopColor="#3b82f6" stopOpacity="0.8">
-                <animate attributeName="stop-color" dur="5s" repeatCount="indefinite" values="#3b82f6;#60a5fa;#818cf8;#3b82f6" />
-              </stop>
+              <stop offset="0%" stopColor="#cbd5e1" stopOpacity="0.5" />
+              <stop offset="50%" stopColor="#3b82f6" stopOpacity="0.8" />
               <stop offset="100%" stopColor="#94a3b8" stopOpacity="0.3" />
             </linearGradient>
           </defs>
-          {parallelOffsets.map((oy, i) => (
+          {parallelOffsets.slice(0, 3).map((oy, i) => (
             <g key={`sys-al-${oy}`} transform={`translate(0 ${oy})`}>
               <path fill="none" stroke="url(#sysWaveALight)" strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.2 - i * 0.08} opacity={0.6 - i * 0.06} d={RIBBON_A} />
             </g>
@@ -103,9 +91,7 @@ function LightWaves() {
           <defs>
             <linearGradient id="sysWaveBLight" x1="0%" y1="0%" x2="100%" y2="0%">
               <stop offset="0%" stopColor="#94a3b8" stopOpacity="0.6" />
-              <stop offset="50%" stopColor="#8b5cf6" stopOpacity="0.7">
-                <animate attributeName="stop-color" dur="4s" repeatCount="indefinite" values="#8b5cf6;#a78bfa;#c084fc;#8b5cf6" />
-              </stop>
+              <stop offset="50%" stopColor="#8b5cf6" stopOpacity="0.7" />
               <stop offset="100%" stopColor="#e2e8f0" stopOpacity="0.4" />
             </linearGradient>
           </defs>
@@ -123,10 +109,7 @@ function LightWaves() {
           <defs>
             <linearGradient id="sysWaveCLight" x1="0%" y1="100%" x2="100%" y2="0%">
               <stop offset="0%" stopColor="#94a3b8" stopOpacity="0.4" />
-              <stop offset="50%" stopColor="#f59e0b" stopOpacity="0.8">
-                <animate attributeName="stop-opacity" dur="3s" repeatCount="indefinite" values="0.6;0.9;0.7;0.6" />
-                <animate attributeName="stop-color" dur="4s" repeatCount="indefinite" values="#f59e0b;#fbbf24;#f59e0b" />
-              </stop>
+              <stop offset="50%" stopColor="#f59e0b" stopOpacity="0.8" />
               <stop offset="100%" stopColor="#cbd5e1" stopOpacity="0.5" />
             </linearGradient>
           </defs>
