@@ -40,22 +40,28 @@ Deno.serve(async (req: Request) => {
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
-    const userClient = createClient(supabaseUrl, anonKey, {
+    if (!supabaseUrl || !serviceKey) {
+      return new Response(
+        JSON.stringify({ error: "Configuração do servidor incompleta (serviceKey ausente)." }),
+        { status: 500, headers: { ...cors, "Content-Type": "application/json" } }
+      );
+    }
+
+    const admin = createClient(supabaseUrl, serviceKey, {
       auth: { persistSession: false, autoRefreshToken: false },
-      global: { headers: { Authorization: `Bearer ${accessToken}` } },
     });
 
     const {
       data: { user: caller },
       error: userErr,
-    } = await userClient.auth.getUser(accessToken);
+    } = await admin.auth.getUser(accessToken);
+
     if (userErr || !caller) {
       return new Response(
         JSON.stringify({
-          error: userErr?.message ?? "Invalid or expired token",
+          error: userErr?.message ?? "Sessão inválida ou expirada.",
           code: "AUTH_FAILED",
         }),
         {
@@ -81,7 +87,7 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const { data: profile, error: profileErr } = await userClient
+    const { data: profile, error: profileErr } = await admin
       .from("profiles")
       .select("role, permissions")
       .eq("id", caller.id)
@@ -105,18 +111,25 @@ Deno.serve(async (req: Request) => {
       (Array.isArray(profile?.permissions) && profile.permissions.includes("usuarios"));
 
     if (!canManage) {
-      return new Response(JSON.stringify({ error: "Forbidden" }), {
+      return new Response(JSON.stringify({ error: "Forbidden: Sem permissão para excluir usuários" }), {
         status: 403,
         headers: { ...cors, "Content-Type": "application/json" },
       });
     }
 
-    const admin = createClient(supabaseUrl, serviceKey, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
+    // 1. Delete from public.profiles table using service role
+    const { error: profDelErr } = await admin
+      .from("profiles")
+      .delete()
+      .eq("id", targetId);
 
+    if (profDelErr) {
+      console.error("Error deleting from profiles:", profDelErr);
+    }
+
+    // 2. Delete from auth.users (if exists)
     const { error: delErr } = await admin.auth.admin.deleteUser(targetId);
-    if (delErr) {
+    if (delErr && !delErr.message?.toLowerCase().includes("not found")) {
       return new Response(JSON.stringify({ error: delErr.message }), {
         status: 400,
         headers: { ...cors, "Content-Type": "application/json" },

@@ -6,6 +6,8 @@ import { useAuthStore } from "@/store/authStore";
 import { canAccessRouteHome, getDefaultLandingPath } from "@/lib/routeAccess";
 import { cn } from "@/lib/utils";
 import { CatalogPage, type CatalogOrientation } from "@/components/catalog/CatalogPage";
+import { CatalogEditProductDialog } from "@/components/catalog/CatalogEditProductDialog";
+import type { Product } from "@/types/Product";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { ArrowLeft, Download, Eye, Loader2, LayoutGrid, List, ChevronLeft, ChevronRight, Maximize2, Minimize2 } from "lucide-react";
+import { ArrowLeft, Download, Eye, Loader2, LayoutGrid, List, ChevronLeft, ChevronRight, Maximize2, Minimize2, Pencil } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { applyCatalogPdfAlignment } from "@/lib/catalogPdfAlignment";
 
@@ -70,7 +72,8 @@ const CatalogPreview = () => {
   const [viewMode, setViewMode] = useState<"list" | "grid">("grid");
   const [isProductsExpanded, setIsProductsExpanded] = useState(true);
   const [activeZoomedProduct, setActiveZoomedProduct] = useState<any | null>(null);
-  const [previewLayout, setPreviewLayout] = useState<"list" | "grid">("grid");
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [previewLayout, setPreviewLayout] = useState<"list" | "grid">("list");
   const [catalogOrientation, setCatalogOrientation] = useState<CatalogOrientation>("portrait");
   const captureRef = useRef<HTMLDivElement>(null);
 
@@ -444,11 +447,11 @@ const CatalogPreview = () => {
               }}
               className="justify-end"
             >
-              <ToggleGroupItem value="grid" aria-label="Grade de Folhas" className="text-xs gap-1.5 py-1 px-3">
-                <LayoutGrid className="h-3.5 w-3.5" /> Grade de Folhas
-              </ToggleGroupItem>
               <ToggleGroupItem value="list" aria-label="Folha a Folha" className="text-xs gap-1.5 py-1 px-3">
                 <List className="h-3.5 w-3.5" /> Folha a Folha (Grande)
+              </ToggleGroupItem>
+              <ToggleGroupItem value="grid" aria-label="Grade de Folhas" className="text-xs gap-1.5 py-1 px-3">
+                <LayoutGrid className="h-3.5 w-3.5" /> Grade de Folhas
               </ToggleGroupItem>
             </ToggleGroup>
           </div>
@@ -470,7 +473,7 @@ const CatalogPreview = () => {
                         width: `${pageW * scale}mm`,
                         height: `${pageH * scale}mm`,
                       }}
-                      className="group relative cursor-pointer overflow-hidden rounded-lg border border-border shadow-md bg-white transition-all duration-300 origin-center hover:scale-110 hover:shadow-2xl hover:z-10"
+                      className="group relative cursor-pointer overflow-hidden rounded-lg border border-border shadow-md bg-white transition-all duration-300 origin-center hover:scale-105 hover:shadow-2xl hover:z-10"
                     >
                       <div
                         className="pointer-events-none origin-top-left"
@@ -482,10 +485,27 @@ const CatalogPreview = () => {
                       >
                         <CatalogPage product={product} settings={settings} orientation={catalogOrientation} />
                       </div>
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-                        <span className="text-white text-[10px] font-semibold flex items-center gap-1 bg-black/75 px-2.5 py-1 rounded-full">
-                          <Eye className="h-3 w-3" /> Ampliar
-                        </span>
+                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-center gap-2 p-2">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveZoomedProduct(product);
+                          }}
+                          className="w-full max-w-[110px] text-white text-[11px] font-semibold flex items-center justify-center gap-1.5 bg-black/80 hover:bg-black py-1.5 rounded-md shadow-sm transition-transform hover:scale-105"
+                        >
+                          <Eye className="h-3.5 w-3.5" /> Ampliar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingProduct(product);
+                          }}
+                          className="w-full max-w-[110px] text-white text-[11px] font-semibold flex items-center justify-center gap-1.5 bg-primary hover:bg-primary/90 py-1.5 rounded-md shadow-sm transition-transform hover:scale-105"
+                        >
+                          <Pencil className="h-3.5 w-3.5" /> Editar
+                        </button>
                       </div>
                     </div>
                   );
@@ -494,11 +514,46 @@ const CatalogPreview = () => {
             </div>
           ) : (
             <div className="catalog-pdf-capture-root overflow-auto rounded-xl border bg-muted/30 p-6 flex flex-col items-center gap-8">
-              {selectedProducts.map((product) => (
-                <div key={product.id} className="shadow-xl bg-white rounded-lg border border-border overflow-hidden">
-                  <CatalogPage product={product} settings={settings} orientation={catalogOrientation} />
-                </div>
-              ))}
+              {selectedProducts.map((product, index) => {
+                const isLandscape = catalogOrientation === "landscape";
+                const a4W = isLandscape ? "297mm" : "210mm";
+                return (
+                  <div key={product.id} className="flex flex-col items-center gap-2 w-full max-w-[297mm]">
+                    {/* Barra de Ações Superior da Folha */}
+                    <div
+                      style={{ width: a4W }}
+                      className="flex items-center justify-between px-4 py-2 bg-card rounded-lg border border-border shadow-xs max-w-full"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-xs font-bold text-foreground">
+                          Folha {index + 1} de {selectedProducts.length}
+                        </span>
+                        <span className="text-xs text-muted-foreground truncate">
+                          · {product.nome}
+                        </span>
+                        {product.referencia && (
+                          <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-muted text-muted-foreground">
+                            Ref: {product.referencia}
+                          </span>
+                        )}
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="default"
+                        onClick={() => setEditingProduct(product)}
+                        className="gap-1.5 h-8 text-xs font-semibold shadow-xs"
+                      >
+                        <Pencil className="h-3.5 w-3.5" /> Editar Produto
+                      </Button>
+                    </div>
+
+                    {/* Folha A4 */}
+                    <div className="shadow-xl bg-white rounded-lg border border-border overflow-hidden">
+                      <CatalogPage product={product} settings={settings} orientation={catalogOrientation} />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -532,6 +587,18 @@ const CatalogPreview = () => {
         settings={settings}
         orientation={catalogOrientation}
         onClose={() => setActiveZoomedProduct(null)}
+        onEdit={(p) => setEditingProduct(p)}
+      />
+
+      <CatalogEditProductDialog
+        product={editingProduct}
+        open={Boolean(editingProduct)}
+        onOpenChange={(open) => !open && setEditingProduct(null)}
+        onSaved={(updated) => {
+          if (activeZoomedProduct?.id === updated.id) {
+            setActiveZoomedProduct(updated);
+          }
+        }}
       />
     </div>
   );
@@ -558,21 +625,35 @@ interface ModalPreviewDialogProps {
   settings: any;
   orientation: CatalogOrientation;
   onClose: () => void;
+  onEdit: (product: Product) => void;
 }
 
-function ModalPreviewDialog({ products, initialIndex, settings, orientation, onClose }: ModalPreviewDialogProps) {
+function ModalPreviewDialog({ products, initialIndex, settings, orientation, onClose, onEdit }: ModalPreviewDialogProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
 
   // Sync state with open item index
   useEffect(() => {
-    setCurrentIndex(initialIndex);
-  }, [initialIndex]);
+    if (initialIndex >= 0 && initialIndex < products.length) {
+      setCurrentIndex(initialIndex);
+    }
+  }, [initialIndex, products.length]);
 
   const { width: winW, height: winH } = useWindowSize();
+  const isOpen = initialIndex !== -1 && products.length > 0;
+
+  // Determine active index safely to avoid undefined product on initial mount or index sync
+  const activeIndex =
+    currentIndex >= 0 && currentIndex < products.length
+      ? currentIndex
+      : initialIndex >= 0 && initialIndex < products.length
+      ? initialIndex
+      : 0;
+
+  const product = products[activeIndex];
 
   // Listen to keyboard left/right arrow keys
   useEffect(() => {
-    if (initialIndex === -1 || products.length === 0) return;
+    if (!isOpen || products.length === 0) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "ArrowLeft") {
@@ -584,11 +665,10 @@ function ModalPreviewDialog({ products, initialIndex, settings, orientation, onC
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [initialIndex, products.length]);
+  }, [isOpen, products.length]);
 
-  if (initialIndex === -1 || products.length === 0) return null;
+  if (!isOpen || !product) return null;
 
-  const product = products[currentIndex];
   const isLandscape = orientation === "landscape";
   const a4W = isLandscape ? 297 : 210;
   const a4H = isLandscape ? 210 : 297;
@@ -619,8 +699,26 @@ function ModalPreviewDialog({ products, initialIndex, settings, orientation, onC
     <Dialog open={initialIndex !== -1} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-[98vw] max-h-[98vh] p-0 bg-slate-950/92 border-0 flex items-center justify-center overflow-hidden outline-none">
         
+        {/* Top floating bar with product title and Edit button */}
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-black/80 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/20 text-white shadow-xl">
+          <span className="text-xs font-semibold">
+            Folha {activeIndex + 1} de {products.length} · {product?.nome || ""}
+          </span>
+          <Button
+            size="sm"
+            variant="default"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (product) onEdit(product);
+            }}
+            className="h-7 text-xs gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-full px-3 shadow-sm"
+          >
+            <Pencil className="h-3.5 w-3.5" /> Editar Produto
+          </Button>
+        </div>
+
         {/* Relative wrapper for page + buttons */}
-        <div className="relative flex items-center justify-center pt-4 pb-4">
+        <div className="relative flex items-center justify-center pt-8 pb-4">
           
           {/* Left Arrow Button */}
           <button
@@ -635,7 +733,7 @@ function ModalPreviewDialog({ products, initialIndex, settings, orientation, onC
           <div
             style={{
               width: `${a4W * modalScale}mm`,
-              maxHeight: "90vh",
+              maxHeight: "88vh",
             }}
             className="bg-white rounded-lg shadow-2xl overflow-x-hidden overflow-y-auto [scrollbar-width:thin] transition-all duration-300"
           >

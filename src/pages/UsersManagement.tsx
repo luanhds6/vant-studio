@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useAuthStore } from "@/store/authStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { CopyPlus, Pencil, Trash2, ShieldAlert, Users, Shield } from "lucide-react";
+import { CopyPlus, Pencil, Trash2, ShieldAlert, Users, Shield, Loader2, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -26,6 +26,8 @@ export default function UsersManagement({ embedded = false }: UsersManagementPro
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [defineNewPassword, setDefineNewPassword] = useState(true);
+  const [showPassword, setShowPassword] = useState(false);
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -167,6 +169,7 @@ export default function UsersManagement({ embedded = false }: UsersManagementPro
       return;
     }
     if (confirm(`Tem certeza que deseja excluir o usuário ${name}?`)) {
+      setDeletingUserId(id);
       try {
         await deleteUser(id);
         toast.success("Usuário excluído com sucesso.");
@@ -174,6 +177,8 @@ export default function UsersManagement({ embedded = false }: UsersManagementPro
         const msg =
           error instanceof Error ? error.message : "Erro ao excluir usuário.";
         toast.error(msg);
+      } finally {
+        setDeletingUserId(null);
       }
     }
   };
@@ -248,13 +253,23 @@ export default function UsersManagement({ embedded = false }: UsersManagementPro
                 </div>
                 {(!editingUserId || defineNewPassword) && (
                   <>
-                    <Input 
-                      id="password" 
-                      type="text" 
-                      value={formData.password} 
-                      onChange={(e) => setFormData({...formData, password: e.target.value})}
-                      placeholder="Mínimo de 6 caracteres"
-                    />
+                    <div className="relative">
+                      <Input 
+                        id="password" 
+                        type={showPassword ? "text" : "password"} 
+                        value={formData.password} 
+                        onChange={(e) => setFormData({...formData, password: e.target.value})}
+                        placeholder="Mínimo de 6 caracteres"
+                        className="pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((p) => !p)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
                     <div className="space-y-2">
                       <Label htmlFor="passwordType">Tipo de Senha</Label>
                       <Select
@@ -372,8 +387,19 @@ export default function UsersManagement({ embedded = false }: UsersManagementPro
                   <Button variant="ghost" size="icon" onClick={() => openEditDialog(user.id)}>
                     <Pencil className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="icon" onClick={() => handleDelete(user.id, user.name)} disabled={user.id === currentUser?.id} className="text-destructive hover:text-destructive hover:bg-destructive/10">
-                    <Trash2 className="h-4 w-4" />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleDelete(user.id, user.name)}
+                    disabled={user.id === currentUser?.id || deletingUserId === user.id}
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                    title={user.id === currentUser?.id ? "Não é possível excluir a própria conta" : "Excluir usuário"}
+                  >
+                    {deletingUserId === user.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4" />
+                    )}
                   </Button>
                 </TableCell>
               </TableRow>

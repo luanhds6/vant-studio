@@ -38,17 +38,21 @@ function createFetchWithDeadline(baseFetch: typeof fetch, timeoutMs: number): ty
   };
 }
 
-export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '', {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-    flowType: 'pkce',
+export const supabase = createClient(
+  supabaseUrl || 'https://placeholder.supabase.co',
+  supabaseAnonKey || 'placeholder-anon-key',
+  {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      flowType: 'pkce',
+    },
+    global: {
+      fetch: createFetchWithDeadline(globalThis.fetch.bind(globalThis), SUPABASE_FETCH_TIMEOUT_MS),
+    },
   },
-  global: {
-    fetch: createFetchWithDeadline(globalThis.fetch.bind(globalThis), SUPABASE_FETCH_TIMEOUT_MS),
-  },
-});
+);
 
 /** Erros típicos quando o refresh token no storage já não existe no servidor (troca de projeto, sessão revogada, etc.). */
 export function isInvalidStoredSessionError(
@@ -66,14 +70,13 @@ export function isInvalidStoredSessionError(
   );
 }
 
-/**
- * Remove tokens persistidos inválidos e sincroniza o cliente, para evitar /token?grant_type=refresh_token em loop (400).
- */
 export async function clearInvalidSupabaseSession(): Promise<void> {
   if (typeof window !== 'undefined' && window.localStorage) {
     for (const key of Object.keys(window.localStorage)) {
-      if (/^sb-.+-auth-token/.test(key)) {
-        window.localStorage.removeItem(key);
+      if (/^sb-/.test(key) || key.includes('auth-token') || key.includes('supabase.auth')) {
+        try {
+          window.localStorage.removeItem(key);
+        } catch {}
       }
     }
   }

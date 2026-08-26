@@ -4,10 +4,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Plus, Trash2, Factory, Palette, Pencil, Printer, Loader2 } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Factory, Palette, Pencil, Printer, Loader2, Download, Upload } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { ImportColorsDialog } from "@/components/colors/ImportColorsDialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -82,11 +83,14 @@ const FabricColorsPage = () => {
   const [expandedFabricLegendIds, setExpandedFabricLegendIds] = useState<string[]>([]);
 
   const [industryDialogOpen, setIndustryDialogOpen] = useState(false);
+  const [isSavingIndustry, setIsSavingIndustry] = useState(false);
   const [fabricDialogOpen, setFabricDialogOpen] = useState(false);
+  const [isSavingFabric, setIsSavingFabric] = useState(false);
   const [colorDialogOpen, setColorDialogOpen] = useState(false);
   const [colorDialogError, setColorDialogError] = useState<string | null>(null);
   const [isSavingNewColor, setIsSavingNewColor] = useState(false);
   const [editColorDialogOpen, setEditColorDialogOpen] = useState(false);
+  const [importColorsDialogOpen, setImportColorsDialogOpen] = useState(false);
   const [isSavingEditColor, setIsSavingEditColor] = useState(false);
   const [editColorDialogError, setEditColorDialogError] = useState<string | null>(null);
   const [editFabricDialogOpen, setEditFabricDialogOpen] = useState(false);
@@ -106,7 +110,6 @@ const FabricColorsPage = () => {
   const [editFabricName, setEditFabricName] = useState("");
   const [editFabricMarkerColor, setEditFabricMarkerColor] = useState("#2563eb");
   const [editFabricMarkerShape, setEditFabricMarkerShape] = useState<FabricMarkerShape>(DEFAULT_FABRIC_MARKER_SHAPE);
-  const [isSavingFabric, setIsSavingFabric] = useState(false);
   const [isDedupingLegends, setIsDedupingLegends] = useState(false);
   const [fabricMarkerOverrides, setFabricMarkerOverrides] = useState<Record<string, string>>({});
   const [fabricMarkerShapeOverrides, setFabricMarkerShapeOverrides] = useState<Record<string, FabricMarkerShape>>({});
@@ -340,85 +343,34 @@ const FabricColorsPage = () => {
     );
   };
 
-  useEffect(() => {
-    if (!selectedIndustryId || !selectedIndustry || isDedupingLegends) return;
-
-    const runDedup = async () => {
-      const grouped = new Map<string, Array<(typeof selectedIndustryFabrics)[number]>>();
-      selectedIndustryFabrics.forEach((fabric) => {
-        const key = normalizeLegendName(fabric.nome);
-        const list = grouped.get(key) || [];
-        list.push(fabric);
-        grouped.set(key, list);
-      });
-
-      const duplicateGroups = Array.from(grouped.values()).filter((group) => group.length > 1);
-      if (duplicateGroups.length === 0) return;
-
-      setIsDedupingLegends(true);
-      try {
-        for (const group of duplicateGroups) {
-          const [keeper, ...duplicates] = group;
-          for (const duplicate of duplicates) {
-            const duplicateColors = colors.filter((color) => color.fabricTypeId === duplicate.id);
-            const keeperColors = colors.filter((color) => color.fabricTypeId === keeper.id);
-
-            for (const color of duplicateColors) {
-              const alreadyExists = keeperColors.some(
-                (k) =>
-                  (k.codigo || "").trim().toLowerCase() === (color.codigo || "").trim().toLowerCase() &&
-                  (k.nome || "").trim().toLowerCase() === (color.nome || "").trim().toLowerCase() &&
-                  (k.hex || "").trim().toLowerCase() === (color.hex || "").trim().toLowerCase(),
-              );
-              if (alreadyExists) {
-                await deleteColor(color.id);
-              } else {
-                await updateColor({
-                  id: color.id,
-                  fabricTypeId: keeper.id,
-                  codigo: color.codigo,
-                  nome: color.nome,
-                  hex: color.hex,
-                });
-              }
-            }
-            await deleteFabricType(duplicate.id);
-          }
-        }
-      } catch {
-        toast({
-          title: "Erro ao remover legends duplicadas",
-          description: "Tente novamente.",
-          variant: "destructive",
-        });
-      } finally {
-        setIsDedupingLegends(false);
-      }
-    };
-
-    void runDedup();
-  }, [selectedIndustryId, selectedIndustry, selectedIndustryFabrics, colors, isDedupingLegends]);
-
   const handleAddIndustry = async () => {
-    if (!newIndustryName.trim()) {
-      toast({ title: "Informe o nome da indústria", variant: "destructive" });
+    if (!newIndustryName.trim() || isSavingIndustry) {
+      if (!newIndustryName.trim()) {
+        toast({ title: "Informe o nome da indústria", variant: "destructive" });
+      }
       return;
     }
+    setIsSavingIndustry(true);
     try {
       await addIndustry({ id: generateId(), nome: newIndustryName.trim() });
       setNewIndustryName("");
       setIndustryDialogOpen(false);
-      toast({ title: "Indústria cadastrada" });
+      toast({ title: "Indústria cadastrada com sucesso!" });
     } catch {
       toast({ title: "Erro ao cadastrar indústria", variant: "destructive" });
+    } finally {
+      setIsSavingIndustry(false);
     }
   };
 
   const handleAddFabricType = async () => {
-    if (!selectedIndustryId || !newFabricName.trim()) {
-      toast({ title: "Informe o nome da legenda de tecido", variant: "destructive" });
+    if (!selectedIndustryId || !newFabricName.trim() || isSavingFabric) {
+      if (!newFabricName.trim()) {
+        toast({ title: "Informe o nome da legenda de tecido", variant: "destructive" });
+      }
       return;
     }
+    setIsSavingFabric(true);
     try {
       const fabricId = generateId();
       await addFabricType({ id: fabricId, industryId: selectedIndustryId, nome: newFabricName.trim() });
@@ -428,9 +380,11 @@ const FabricColorsPage = () => {
       setNewFabricMarkerColor("#2563eb");
       setNewFabricMarkerShape(DEFAULT_FABRIC_MARKER_SHAPE);
       setFabricDialogOpen(false);
-      toast({ title: "Legenda de tecido cadastrada" });
+      toast({ title: "Legenda de tecido cadastrada com sucesso!" });
     } catch {
       toast({ title: "Erro ao cadastrar legenda de tecido", variant: "destructive" });
+    } finally {
+      setIsSavingFabric(false);
     }
   };
 
@@ -992,30 +946,180 @@ const FabricColorsPage = () => {
     }, 150);
   };
 
+  const handleExportIndustryColors = () => {
+    if (!selectedIndustry) return;
+    if (selectedIndustryColors.length === 0) {
+      toast({ title: "Não há cores cadastradas para exportar", variant: "destructive" });
+      return;
+    }
+
+    const exportPayload = {
+      app: "VantStudioCatalogo",
+      type: "fabric_colors",
+      version: "1.0",
+      exportedAt: new Date().toISOString(),
+      industry: {
+        id: selectedIndustry.id,
+        nome: selectedIndustry.nome,
+      },
+      fabricTypes: selectedIndustryFabrics.map((f) => ({
+        id: f.id,
+        nome: f.nome,
+        markerColor: markerColorByFabricId[f.id] || "#2563eb",
+        markerShape: markerShapeByFabricId[f.id] || DEFAULT_FABRIC_MARKER_SHAPE,
+      })),
+      colors: selectedIndustryColors.map((c) => ({
+        id: c.id,
+        codigo: c.codigo || "",
+        nome: c.nome,
+        hex: c.hex,
+        fabricTypeId: c.fabricTypeId,
+        fabricTypeName: fabricNameById[c.fabricTypeId || ""] || "",
+      })),
+    };
+
+    const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(
+      JSON.stringify(exportPayload, null, 2),
+    )}`;
+
+    const safeIndName = selectedIndustry.nome
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+
+    const dateStr = new Date().toISOString().split("T")[0];
+    const filename = `cores-${safeIndName || "industria"}-${dateStr}.json`;
+
+    const downloadAnchor = document.createElement("a");
+    downloadAnchor.setAttribute("href", jsonString);
+    downloadAnchor.setAttribute("download", filename);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+
+    toast({ title: `${selectedIndustryColors.length} cor(es) exportada(s) com sucesso!` });
+  };
+
+  const handleExportAllColors = () => {
+    if (colors.length === 0) {
+      toast({ title: "Não há cores cadastradas para exportar", variant: "destructive" });
+      return;
+    }
+
+    const exportPayload = {
+      app: "VantStudioCatalogo",
+      type: "all_fabric_colors",
+      version: "1.0",
+      exportedAt: new Date().toISOString(),
+      totalColors: colors.length,
+      totalIndustries: industries.length,
+      industries: industries.map((ind) => {
+        const indFabrics = fabricTypes.filter((f) => f.industryId === ind.id);
+        const indColors = colors.filter((c) => indFabrics.some((f) => f.id === c.fabricTypeId));
+        return {
+          id: ind.id,
+          nome: ind.nome,
+          fabricTypes: indFabrics.map((f) => ({
+            id: f.id,
+            nome: f.nome,
+            markerColor: markerColorByFabricId[f.id] || "#2563eb",
+            markerShape: markerShapeByFabricId[f.id] || DEFAULT_FABRIC_MARKER_SHAPE,
+          })),
+          colors: indColors.map((c) => {
+            const f = indFabrics.find((fb) => fb.id === c.fabricTypeId);
+            return {
+              id: c.id,
+              codigo: c.codigo || "",
+              nome: c.nome,
+              hex: c.hex,
+              fabricTypeId: c.fabricTypeId,
+              fabricTypeName: f?.nome || "",
+            };
+          }),
+        };
+      }),
+    };
+
+    const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(
+      JSON.stringify(exportPayload, null, 2),
+    )}`;
+
+    const dateStr = new Date().toISOString().split("T")[0];
+    const filename = `catalogo-todas-cores-${dateStr}.json`;
+
+    const downloadAnchor = document.createElement("a");
+    downloadAnchor.setAttribute("href", jsonString);
+    downloadAnchor.setAttribute("download", filename);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+
+    toast({ title: `${colors.length} cor(es) exportada(s) com sucesso!` });
+  };
+
   const renderIndustries = () => (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-semibold">Indústrias</h2>
-        <Dialog open={industryDialogOpen} onOpenChange={setIndustryDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Nova Indústria
-            </Button>
-          </DialogTrigger>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h2 className="text-2xl font-semibold">Indústrias</h2>
+          <p className="text-sm text-muted-foreground">
+            {industries.length} indústria{industries.length !== 1 ? "s" : ""} · {colors.length} cor{colors.length !== 1 ? "es" : ""} cadastradas
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            onClick={handleExportAllColors}
+            disabled={colors.length === 0}
+            title="Exportar todas as cores e indústrias em JSON"
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Exportar catálogo
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setImportColorsDialogOpen(true)}
+            title="Importar catálogo de cores a partir de JSON"
+          >
+            <Upload className="mr-2 h-4 w-4" />
+            Importar cores
+          </Button>
+          <Dialog open={industryDialogOpen} onOpenChange={setIndustryDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                Nova Indústria
+              </Button>
+            </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Cadastrar Indústria</DialogTitle>
             </DialogHeader>
             <div className="space-y-2 py-4">
               <Label>Nome da Indústria</Label>
-              <Input value={newIndustryName} onChange={(e) => setNewIndustryName(e.target.value)} placeholder="Ex: Cedro Têxtil" />
+              <Input
+                value={newIndustryName}
+                onChange={(e) => setNewIndustryName(e.target.value)}
+                placeholder="Ex: Cedro Têxtil"
+                disabled={isSavingIndustry}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    void handleAddIndustry();
+                  }
+                }}
+              />
             </div>
             <DialogFooter>
-              <Button onClick={handleAddIndustry}>Cadastrar</Button>
+              <Button onClick={handleAddIndustry} disabled={isSavingIndustry}>
+                {isSavingIndustry ? "Cadastrando..." : "Cadastrar"}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
@@ -1079,7 +1183,24 @@ const FabricColorsPage = () => {
             <span className="font-medium text-foreground">{selectedIndustry?.nome}</span> · por tipo de tecido
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            onClick={handleExportIndustryColors}
+            disabled={selectedIndustryColors.length === 0}
+            title="Exportar cores desta indústria em formato JSON"
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Exportar cores
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setImportColorsDialogOpen(true)}
+            title="Importar cores para esta indústria a partir de arquivo JSON"
+          >
+            <Upload className="mr-2 h-4 w-4" />
+            Importar cores
+          </Button>
           <Dialog open={fabricDialogOpen} onOpenChange={setFabricDialogOpen}>
             <DialogTrigger asChild>
               <Button variant="outline">
@@ -1131,7 +1252,9 @@ const FabricColorsPage = () => {
                 </p>
               </div>
               <DialogFooter>
-                <Button onClick={handleAddFabricType}>Cadastrar Legenda</Button>
+                <Button onClick={handleAddFabricType} disabled={isSavingFabric}>
+                  {isSavingFabric ? "Cadastrando..." : "Cadastrar Legenda"}
+                </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -1753,6 +1876,12 @@ const FabricColorsPage = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ImportColorsDialog
+        open={importColorsDialogOpen}
+        onOpenChange={setImportColorsDialogOpen}
+        targetIndustry={selectedIndustry}
+      />
     </div>
   );
 };

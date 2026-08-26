@@ -27,6 +27,7 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "@/hooks/use-toast";
 import { ArrowLeft, Building2, Download, ImageIcon, Pencil, PlayCircle, PlusCircle, QrCode, RefreshCw, Search, Upload } from "lucide-react";
+import { ExportProductsDialog } from "@/components/products/ExportProductsDialog";
 
 const generateId = () => crypto.randomUUID();
 
@@ -158,6 +159,7 @@ export default function ProductCadastroPage() {
   const [imagem, setImagem] = useState("");
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [qrError, setQrError] = useState<string | null>(null);
+  const [isExportOpen, setIsExportOpen] = useState(false);
 
   useEffect(() => {
     const fromUrl = searchParams.get("hospital");
@@ -300,7 +302,10 @@ export default function ProductCadastroPage() {
     maxFiles: 1,
   });
 
-  const handleSave = () => {
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (isSaving) return;
     if (!hospitalId || !hospital) return;
     if (!nome.trim()) {
       toast({ title: "Nome obrigatório", variant: "destructive" });
@@ -311,35 +316,42 @@ export default function ProductCadastroPage() {
       return;
     }
     const draft = { nome, largura, altura, unidade, codigoEtiqueta, imagem };
-    if (editingId) {
-      if (!canEdit) {
-        toast({ title: "Sem permissão", description: "Não é possível salvar alterações sem permissão de Produtos.", variant: "destructive" });
-        return;
+    setIsSaving(true);
+    try {
+      if (editingId) {
+        if (!canEdit) {
+          toast({ title: "Sem permissão", description: "Não é possível salvar alterações sem permissão de Produtos.", variant: "destructive" });
+          return;
+        }
+        const existing = products.find((p) => p.id === editingId);
+        if (!existing) return;
+        await updateProduct(buildProductFromDraft(hospitalId, draft, existing));
+        toast({ title: "Produto atualizado com sucesso!" });
+        setModalOpen(false);
+        resetModalForm();
+      } else {
+        if (!canCreate) {
+          toast({ title: "Sem permissão", description: "Não é possível criar produtos sem permissão de Novo produto.", variant: "destructive" });
+          return;
+        }
+        const dup = products.some((p) => norm(p.referencia) === norm(codigoEtiqueta));
+        if (dup) {
+          toast({
+            title: "Código já utilizado",
+            description: "Já existe produto com este código. Busque na lista ou edite o existente.",
+            variant: "destructive",
+          });
+          return;
+        }
+        await addProduct(buildProductFromDraft(hospitalId, draft));
+        toast({ title: "Produto cadastrado com sucesso!" });
+        setModalOpen(false);
+        resetModalForm();
       }
-      const existing = products.find((p) => p.id === editingId);
-      if (!existing) return;
-      updateProduct(buildProductFromDraft(hospitalId, draft, existing));
-      toast({ title: "Produto atualizado" });
-      setModalOpen(false);
-      resetModalForm();
-    } else {
-      if (!canCreate) {
-        toast({ title: "Sem permissão", description: "Não é possível criar produtos sem permissão de Novo produto.", variant: "destructive" });
-        return;
-      }
-      const dup = products.some((p) => norm(p.referencia) === norm(codigoEtiqueta));
-      if (dup) {
-        toast({
-          title: "Código já utilizado",
-          description: "Já existe produto com este código. Busque na lista ou edite o existente.",
-          variant: "destructive",
-        });
-        return;
-      }
-      addProduct(buildProductFromDraft(hospitalId, draft));
-      toast({ title: "Produto cadastrado" });
-      setModalOpen(false);
-      resetModalForm();
+    } catch (err) {
+      toast({ title: "Erro ao salvar produto", variant: "destructive" });
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -378,11 +390,24 @@ export default function ProductCadastroPage() {
             {hospital ? hospital.nome : "Escolha o hospital para continuar"}
           </p>
         </div>
-        {showMain && canCreate ? (
-          <Button onClick={openNewModal} className="shrink-0 self-start sm:self-center">
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Novo produto
-          </Button>
+        {showMain ? (
+          <div className="flex flex-wrap items-center gap-2 shrink-0 self-start sm:self-center">
+            <Button
+              variant="outline"
+              onClick={() => setIsExportOpen(true)}
+              disabled={products.length === 0}
+              title="Exportar produtos deste hospital em JSON"
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Exportar produtos
+            </Button>
+            {canCreate ? (
+              <Button onClick={openNewModal}>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Novo produto
+              </Button>
+            ) : null}
+          </div>
         ) : null}
       </div>
 
@@ -683,15 +708,28 @@ export default function ProductCadastroPage() {
           </div>
 
           <div className="flex flex-wrap gap-2 border-t pt-4">
-            <Button type="button" onClick={handleSave} disabled={(!editingId && !canCreate) || (Boolean(editingId) && !canEdit)}>
-              {editingId ? "Salvar alterações" : "Salvar produto"}
+            <Button
+              type="button"
+              onClick={handleSave}
+              disabled={isSaving || (!editingId && !canCreate) || (Boolean(editingId) && !canEdit)}
+            >
+              {isSaving ? "Salvando..." : editingId ? "Salvar alterações" : "Salvar produto"}
             </Button>
-            <Button type="button" variant="outline" onClick={resetModalForm}>
+            <Button type="button" variant="outline" onClick={resetModalForm} disabled={isSaving}>
               Limpar formulário
             </Button>
           </div>
         </DialogContent>
       </Dialog>
+      {/* Modal de Exportação de Produtos com Seleção */}
+      {hospital && (
+        <ExportProductsDialog
+          open={isExportOpen}
+          onOpenChange={setIsExportOpen}
+          hospital={hospital}
+          products={products}
+        />
+      )}
     </div>
   );
 }

@@ -43,6 +43,7 @@ const HospitalsPage = () => {
   const deleteHospital = useProductStore((s) => s.deleteHospital);
   const [nome, setNome] = useState("");
   const [cidade, setCidade] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   const countByHospital = useMemo(() => {
     const map = new Map<string, number>();
@@ -53,12 +54,13 @@ const HospitalsPage = () => {
   }, [products]);
 
   const handleAdd = async () => {
-    if (!canCadastrar) return;
+    if (!canCadastrar || isSaving) return;
     const n = nome.trim();
     if (!n) {
       toast({ title: "Informe o nome do hospital", variant: "destructive" });
       return;
     }
+    setIsSaving(true);
     try {
       await addHospital({
         id: generateId(),
@@ -68,9 +70,11 @@ const HospitalsPage = () => {
       });
       setNome("");
       setCidade("");
-      toast({ title: "Hospital cadastrado" });
+      toast({ title: "Hospital cadastrado com sucesso!" });
     } catch (error) {
       toast({ title: "Erro ao cadastrar hospital", variant: "destructive" });
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -104,6 +108,13 @@ const HospitalsPage = () => {
                     value={nome}
                     onChange={(e) => setNome(e.target.value)}
                     placeholder="Ex: Hospital Municipal São José"
+                    disabled={isSaving}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        void handleAdd();
+                      }
+                    }}
                   />
                 </div>
                 <div className="space-y-2">
@@ -113,12 +124,19 @@ const HospitalsPage = () => {
                     value={cidade}
                     onChange={(e) => setCidade(e.target.value)}
                     placeholder="Ex: Curitiba"
+                    disabled={isSaving}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        void handleAdd();
+                      }
+                    }}
                   />
                 </div>
                 <div className="flex items-end">
-                  <Button type="button" className="w-full sm:w-auto" onClick={handleAdd}>
+                  <Button type="button" className="w-full sm:w-auto" onClick={handleAdd} disabled={isSaving}>
                     <Plus className="mr-2 h-4 w-4" />
-                    Cadastrar
+                    {isSaving ? "Cadastrando..." : "Cadastrar"}
                   </Button>
                 </div>
               </CardContent>

@@ -99,6 +99,7 @@ export interface Product {
     ativo: boolean;
     imagem: string; // base64
   };
+  arquivado?: boolean;
   createdAt: string;
   updatedAt: string;
 }

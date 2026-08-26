@@ -39,22 +39,28 @@ Deno.serve(async (req: Request) => {
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
-    const userClient = createClient(supabaseUrl, anonKey, {
+    if (!supabaseUrl || !serviceKey) {
+      return new Response(
+        JSON.stringify({ error: "Configuração do servidor incompleta (serviceKey ausente)." }),
+        { status: 500, headers: { ...cors, "Content-Type": "application/json" } }
+      );
+    }
+
+    const admin = createClient(supabaseUrl, serviceKey, {
       auth: { persistSession: false, autoRefreshToken: false },
-      global: { headers: { Authorization: `Bearer ${accessToken}` } },
     });
 
     const {
       data: { user: caller },
       error: userErr,
-    } = await userClient.auth.getUser(accessToken);
+    } = await admin.auth.getUser(accessToken);
+
     if (userErr || !caller) {
       return new Response(
         JSON.stringify({
-          error: userErr?.message ?? "Invalid or expired token",
+          error: userErr?.message ?? "Sessão inválida ou expirada.",
           code: "AUTH_FAILED",
         }),
         {
@@ -69,16 +75,20 @@ Deno.serve(async (req: Request) => {
       password?: string;
       name?: string;
       role?: string;
+      permissions?: string[];
+      mustChangePassword?: boolean;
     };
 
     const email = typeof body.email === "string" ? body.email.trim() : "";
     const password = typeof body.password === "string" ? body.password : "";
     const name = typeof body.name === "string" ? body.name.trim() : "";
     const roleRaw = typeof body.role === "string" ? body.role.trim() : "user";
+    const permissions = Array.isArray(body.permissions) ? body.permissions : [];
+    const mustChangePassword = Boolean(body.mustChangePassword);
 
     if (!email || !password || !name) {
       return new Response(
-        JSON.stringify({ error: "email, password e name são obrigatórios." }),
+        JSON.stringify({ error: "E-mail, senha e nome são obrigatórios." }),
         {
           status: 400,
           headers: { ...cors, "Content-Type": "application/json" },
@@ -105,7 +115,19 @@ Deno.serve(async (req: Request) => {
         ? "admin"
         : "user";
 
-    const { data: profile, error: profileErr } = await userClient
+    const allPermissions = [
+      "pagina_inicial",
+      "gerar_catalogo",
+      "novo_produto",
+      "produtos",
+      "configuracoes",
+      "usuarios",
+    ];
+
+    const permissionsStored =
+      roleStored === "admin" ? allPermissions : permissions.length > 0 ? permissions : ["gerar_catalogo"];
+
+    const { data: profile, error: profileErr } = await admin
       .from("profiles")
       .select("role, permissions")
       .eq("id", caller.id)
@@ -129,15 +151,11 @@ Deno.serve(async (req: Request) => {
       (Array.isArray(profile?.permissions) && profile.permissions.includes("usuarios"));
 
     if (!canManage) {
-      return new Response(JSON.stringify({ error: "Forbidden" }), {
+      return new Response(JSON.stringify({ error: "Forbidden: Sem permissão para gerenciar usuários" }), {
         status: 403,
         headers: { ...cors, "Content-Type": "application/json" },
       });
     }
-
-    const admin = createClient(supabaseUrl, serviceKey, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
 
     const { data: created, error: createErr } = await admin.auth.admin.createUser({
       email,
@@ -167,9 +185,41 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    return new Response(JSON.stringify({ ok: true, userId }), {
-      headers: { ...cors, "Content-Type": "application/json" },
-    });
+    // Upsert into profiles using service role
+    const { error: upsertErr } = await admin.from("profiles").upsert(
+      {
+        id: userId,
+        name,
+        email,
+        role: roleStored,
+        permissions: permissionsStored,
+        must_change_password: mustChangePassword,
+      },
+      { onConflict: "id" }
+    );
+
+    if (upsertErr) {
+      console.error("Error creating profile:", upsertErr);
+    }
+
+    return new Response(
+      JSON.stringify({
+        ok: true,
+        userId,
+        user: {
+          id: userId,
+          name,
+          email,
+          role: roleStored,
+          permissions: permissionsStored,
+          mustChangePassword,
+          createdAt: new Date().toISOString(),
+        },
+      }),
+      {
+        headers: { ...cors, "Content-Type": "application/json" },
+      }
+    );
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unknown error";
     return new Response(JSON.stringify({ error: msg }), {

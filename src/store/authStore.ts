@@ -107,21 +107,32 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   initialize: async () => {
     try {
+      const sessionResult = await Promise.race([
+        supabase.auth.getSession(),
+        new Promise<{ data: { session: null }; error: null }>((resolve) =>
+          setTimeout(() => resolve({ data: { session: null }, error: null }), 4000),
+        ),
+      ]);
+
       let {
         data: { session },
         error: sessionError,
-      } = await supabase.auth.getSession();
+      } = sessionResult;
 
       if (sessionError && isInvalidStoredSessionError(sessionError)) {
         console.warn(
           "Sessão guardada inválida ou expirada; a limpar tokens locais.",
-          sessionError.message
+          sessionError.message,
         );
         await clearInvalidSupabaseSession();
-        ({
-          data: { session },
-          error: sessionError,
-        } = await supabase.auth.getSession());
+        const retryResult = await Promise.race([
+          supabase.auth.getSession(),
+          new Promise<{ data: { session: null }; error: null }>((resolve) =>
+            setTimeout(() => resolve({ data: { session: null }, error: null }), 3000),
+          ),
+        ]);
+        session = retryResult.data.session;
+        sessionError = retryResult.error;
       }
 
       if (sessionError && !session) {
@@ -129,31 +140,45 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       if (session?.user) {
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .maybeSingle();
+        const profileResult = await Promise.race([
+          supabase
+            .from("profiles")
+            .select("*")
+            .eq("id", session.user.id)
+            .maybeSingle(),
+          new Promise<{ data: null; error: Error }>((resolve) =>
+            setTimeout(
+              () => resolve({ data: null, error: new Error("Profile fetch timeout") }),
+              4000,
+            ),
+          ),
+        ]);
 
-        if (profileError) {
-          console.error('Erro ao buscar perfil na inicialização:', profileError.message, profileError);
+        const { data: profile, error: profileError } = profileResult;
+
+        if (profileError || !profile) {
+          if (profileError) {
+            console.warn("Sessão expirada ou incompatível com o projeto atual. Limpando credenciais locais...");
+          }
+          await clearInvalidSupabaseSession();
+          set({ isAuthenticated: false, currentUser: null, isLoading: false });
+          return;
         }
 
-        if (profile) {
-          const user = mapProfileToUser(profile, session.user.email);
-          set({ isAuthenticated: true, currentUser: user, isLoading: false });
-          if (user.role === 'admin') {
-            get().fetchUsers();
-          }
-        } else {
-          set({ isAuthenticated: false, currentUser: null, isLoading: false });
+        const user = mapProfileToUser(profile, session.user.email);
+        set({ isAuthenticated: true, currentUser: user, isLoading: false });
+        if (user.role === "admin") {
+          get().fetchUsers();
         }
       } else {
         set({ isAuthenticated: false, currentUser: null, isLoading: false });
       }
     } catch (err) {
-      console.error("Erro crítico na inicialização do sistema:", err);
+      console.error("Erro na inicialização de autenticação:", err);
+      await clearInvalidSupabaseSession();
       set({ isAuthenticated: false, currentUser: null, isLoading: false });
+    } finally {
+      set({ isLoading: false });
     }
 
     if (authStateListenerAttached) {
@@ -207,18 +232,36 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     try {
-      const { data: { user: authUser }, error: loginError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const signInResult = await Promise.race([
+        supabase.auth.signInWithPassword({
+          email,
+          password,
+        }),
+        new Promise<{ data: { user: null }; error: { message: string } }>((_, reject) =>
+          setTimeout(
+            () =>
+              reject(
+                new Error(
+                  "Tempo limite esgotado ao conectar ao Supabase (Error 522 / Timeout). Verifique se o projeto no painel do Supabase está ativo.",
+                ),
+              ),
+            12_000,
+          ),
+        ),
+      ]);
+
+      const {
+        data: { user: authUser },
+        error: loginError,
+      } = signInResult;
 
       if (loginError) {
         recordLoginFailure(email);
-        console.error('Falha na tentativa de login:', sanitizeForLog(loginError));
+        console.error("Falha na tentativa de login:", sanitizeForLog(loginError));
         return {
           success: false,
           message: toSafeUserMessage(
-            'Credenciais inválidas. Verifique e-mail e palavra-passe.',
+            "Credenciais inválidas. Verifique e-mail e palavra-passe.",
             loginError.message,
           ),
         };
@@ -227,43 +270,55 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       clearLoginAttempts(email);
 
       if (authUser) {
-        // Fetch profile immediately to update state before returning
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', authUser.id)
-          .maybeSingle();
+        const profileResult = await Promise.race([
+          supabase
+            .from("profiles")
+            .select("*")
+            .eq("id", authUser.id)
+            .maybeSingle(),
+          new Promise<{ data: null; error: { message: string } }>((_, reject) =>
+            setTimeout(
+              () => reject(new Error("Tempo limite ao carregar perfil de usuário.")),
+              8_000,
+            ),
+          ),
+        ]);
+
+        const { data: profile, error: profileError } = profileResult;
 
         if (profileError) {
-          console.error('Erro ao buscar perfil após login:', sanitizeForLog(profileError));
+          console.error("Erro ao buscar perfil após login:", sanitizeForLog(profileError));
           return {
             success: false,
             message: toSafeUserMessage(
-              'Não foi possível carregar o seu perfil. Contacte o administrador.',
+              "Não foi possível carregar o seu perfil. Contacte o administrador.",
               profileError.message,
             ),
           };
         }
 
         if (!profile) {
-          console.error('Perfil não encontrado para utilizador autenticado.');
-          return { success: false, message: 'Seu perfil de usuário não foi encontrado. Entre em contato com o suporte.' };
+          console.error("Perfil não encontrado para utilizador autenticado.");
+          return {
+            success: false,
+            message: "Seu perfil de usuário não foi encontrado na tabela profiles. Verifique os dados no banco.",
+          };
         }
 
-        if (profile) {
-          const user = mapProfileToUser(profile, authUser.email);
-          set({ isAuthenticated: true, currentUser: user });
-          if (user.role === 'admin') {
-            get().fetchUsers();
-          }
-          return { success: true, message: 'Login realizado com sucesso!' };
+        const user = mapProfileToUser(profile, authUser.email);
+        set({ isAuthenticated: true, currentUser: user });
+        if (user.role === "admin") {
+          get().fetchUsers();
         }
+        return { success: true, message: "Login realizado com sucesso!" };
       }
 
-      return { success: false, message: 'Usuário não encontrado.' };
-    } catch (err) {
-      console.error('Erro inesperado durante o login:', err);
-      return { success: false, message: 'Ocorreu um erro inesperado ao fazer login.' };
+      return { success: false, message: "Usuário não encontrado." };
+    } catch (err: unknown) {
+      console.error("Erro inesperado durante o login:", err);
+      const msg =
+        err instanceof Error ? err.message : "Ocorreu um erro inesperado ao conectar ao servidor.";
+      return { success: false, message: msg };
     }
   },
 
@@ -316,9 +371,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const permissionsStored =
       roleStored === "admin"
         ? ALL_PERMISSIONS
-        : userData.permissions;
+        : userData.permissions && userData.permissions.length > 0
+          ? userData.permissions
+          : ["gerar_catalogo"];
 
-    await getSessionAccessTokenOrThrow();
+    const accessToken = await getSessionAccessTokenOrThrow();
 
     const { data: fnData, error: fnError } = await withTimeout(
       supabase.functions.invoke<{
@@ -326,15 +383,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         userId?: string;
         error?: string;
       }>("create-user", {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
         body: {
           email,
           password: userData.password,
           name,
           role: roleStored,
+          permissions: permissionsStored,
+          mustChangePassword: userData.mustChangePassword,
         },
       }),
-      45_000,
-      "Tempo esgotado ao criar utilizador no servidor. Confirme no Supabase que a Edge Function «create-user» está implantada e que a rede permite HTTPS.",
+      25_000,
+      "Tempo esgotado ao criar utilizador no servidor. Verifique a conexão com o Supabase.",
     );
 
     if (fnError) {
@@ -358,75 +420,38 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       throw new Error("Conta não criada: resposta inválida do servidor.");
     }
 
-    const { error: profileError } = await supabase.from("profiles").upsert(
-      {
-        id: newUserId,
-        name,
-        email,
-        role: roleStored,
-        permissions: permissionsStored,
-        must_change_password: userData.mustChangePassword,
-      },
-      { onConflict: "id" }
-    );
+    // Client-side fallback upsert
+    try {
+      await supabase.from("profiles").upsert(
+        {
+          id: newUserId,
+          name,
+          email,
+          role: roleStored,
+          permissions: permissionsStored,
+          must_change_password: userData.mustChangePassword,
+        },
+        { onConflict: "id" }
+      );
+    } catch {}
 
-    if (profileError) {
-      console.error("Erro ao guardar perfil do novo usuário:", profileError);
-      throw profileError;
-    }
+    const newUserObj: User = {
+      id: newUserId,
+      name,
+      email,
+      role: roleStored,
+      permissions: permissionsStored,
+      mustChangePassword: Boolean(userData.mustChangePassword),
+      createdAt: new Date().toISOString(),
+    };
+    set({ users: [...get().users.filter((u) => u.id !== newUserId), newUserObj] });
 
-    await get().fetchUsers();
+    void get().fetchUsers();
   },
 
   updateUser: async (id, updates) => {
     const pwdRaw = updates.password?.trim() ?? "";
-    const existing = get().users.find((u) => u.id === id);
-    const emailTrim =
-      updates.email !== undefined ? updates.email.trim() : undefined;
-    const emailChanged =
-      emailTrim !== undefined &&
-      existing !== undefined &&
-      emailTrim.toLowerCase() !== (existing.email || "").toLowerCase();
-
-    const needsAuthUpdate =
-      pwdRaw.length > 0 ||
-      (emailChanged && emailTrim !== undefined);
-
-    if (needsAuthUpdate) {
-      await getSessionAccessTokenOrThrow();
-      const body: { userId: string; password?: string; email?: string } = {
-        userId: id,
-      };
-      if (pwdRaw.length > 0) body.password = pwdRaw;
-      if (emailChanged && emailTrim) body.email = emailTrim;
-
-      const { data, error } = await withTimeout(
-        supabase.functions.invoke<{
-          ok?: boolean;
-          error?: string;
-        }>("update-user-auth", {
-          body,
-        }),
-        45_000,
-        "Tempo esgotado ao atualizar senha/e-mail no servidor. Confirme no Supabase que a Edge Function «update-user-auth» está implantada e ativa (projeto correto e URL no .env).",
-      );
-
-      if (error) {
-        let msg = error.message;
-        if (error instanceof FunctionsHttpError) {
-          try {
-            const j = (await error.context.json()) as { error?: string };
-            if (j?.error) msg = j.error;
-          } catch {
-            /* ignore */
-          }
-        }
-        throw new Error(msg);
-      }
-      if (data?.error) {
-        throw new Error(data.error);
-      }
-    }
+    const emailTrim = updates.email !== undefined ? updates.email.trim() : undefined;
 
     const roleNorm =
       updates.role !== undefined ? normalizeRole(updates.role as string) : undefined;
@@ -434,6 +459,55 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       roleNorm === "admin"
         ? ALL_PERMISSIONS
         : updates.permissions;
+
+    const accessToken = await getSessionAccessTokenOrThrow();
+    const body: {
+      userId: string;
+      password?: string;
+      email?: string;
+      name?: string;
+      role?: string;
+      permissions?: PermissionKey[];
+      mustChangePassword?: boolean;
+    } = {
+      userId: id,
+      name: updates.name,
+      role: roleNorm,
+      permissions: permissionsDb,
+      mustChangePassword: updates.mustChangePassword,
+    };
+    if (pwdRaw.length > 0) body.password = pwdRaw;
+    if (emailTrim !== undefined) body.email = emailTrim;
+
+    const { data, error } = await withTimeout(
+      supabase.functions.invoke<{
+        ok?: boolean;
+        error?: string;
+      }>("update-user-auth", {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body,
+      }),
+      25_000,
+      "Tempo esgotado ao atualizar usuário no servidor. Verifique a conexão com o Supabase.",
+    );
+
+    if (error) {
+      let msg = error.message;
+      if (error instanceof FunctionsHttpError) {
+        try {
+          const j = (await error.context.json()) as { error?: string };
+          if (j?.error) msg = j.error;
+        } catch {
+          /* ignore */
+        }
+      }
+      throw new Error(msg);
+    }
+    if (data?.error) {
+      throw new Error(data.error);
+    }
 
     const patch: Record<string, unknown> = {};
     if (updates.name !== undefined) patch.name = updates.name;
@@ -444,22 +518,41 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (updates.mustChangePassword !== undefined)
       patch.must_change_password = updates.mustChangePassword;
 
-    const { error } = await supabase.from("profiles").update(patch).eq("id", id);
+    try {
+      await supabase.from("profiles").update(patch).eq("id", id);
+    } catch {}
 
-    if (error) {
-      console.error("Error updating user:", error);
-      throw error;
-    }
-
-    await get().fetchUsers();
+    // Optimistically update local store
+    set({
+      users: get().users.map((u) => {
+        if (u.id !== id) return u;
+        return {
+          ...u,
+          ...(updates.name !== undefined && { name: updates.name }),
+          ...(emailTrim !== undefined && { email: emailTrim }),
+          ...(roleNorm !== undefined && { role: roleNorm }),
+          ...(permissionsDb !== undefined && { permissions: permissionsDb }),
+          ...(updates.mustChangePassword !== undefined && {
+            mustChangePassword: updates.mustChangePassword,
+          }),
+        };
+      }),
+    });
 
     const { currentUser } = get();
     if (currentUser?.id === id) {
-      const refreshed = get().users.find((u) => u.id === id);
-      if (refreshed) {
-        set({ currentUser: refreshed });
-      }
+      set({
+        currentUser: {
+          ...currentUser,
+          ...(updates.name !== undefined && { name: updates.name }),
+          ...(emailTrim !== undefined && { email: emailTrim }),
+          ...(roleNorm !== undefined && { role: roleNorm }),
+          ...(permissionsDb !== undefined && { permissions: permissionsDb }),
+        },
+      });
     }
+
+    void get().fetchUsers();
   },
 
   updateOwnProfile: async (payload) => {
@@ -603,17 +696,28 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       throw new Error("Sem permissão para excluir utilizadores.");
     }
 
-    await getSessionAccessTokenOrThrow();
+    // Optimistic in-memory removal
+    set({ users: get().users.filter((u) => u.id !== id) });
+
+    const accessToken = await getSessionAccessTokenOrThrow();
+
+    // Client-side delete attempt on public.profiles
+    try {
+      await supabase.from("profiles").delete().eq("id", id);
+    } catch {}
 
     const { data, error } = await withTimeout(
       supabase.functions.invoke<{
         ok?: boolean;
         error?: string;
       }>("delete-user", {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
         body: { userId: id },
       }),
-      45_000,
-      "Tempo esgotado ao excluir utilizador no servidor. Confirme que a Edge Function «delete-user» está implantada.",
+      25_000,
+      "Tempo esgotado ao excluir utilizador no servidor. Verifique a conexão com o Supabase.",
     );
 
     if (error) {
@@ -626,13 +730,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           /* resposta não JSON */
         }
       }
+      // Re-fetch to restore state if deletion failed
+      void get().fetchUsers();
       throw new Error(msg);
     }
     if (data?.error) {
+      void get().fetchUsers();
       throw new Error(data.error);
     }
 
-    await get().fetchUsers();
+    void get().fetchUsers();
   },
 
   canAccess: (permission) => {

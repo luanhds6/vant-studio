@@ -131,6 +131,13 @@ const App = () => {
 
   useEffect(() => {
     void initAuth();
+    const safetyTimer = setTimeout(() => {
+      if (useAuthStore.getState().isLoading) {
+        console.warn("Safety timer: desbloqueando tela de carregamento.");
+        useAuthStore.setState({ isLoading: false });
+      }
+    }, 3500);
+    return () => clearTimeout(safetyTimer);
   }, [initAuth]);
 
   useEffect(() => {

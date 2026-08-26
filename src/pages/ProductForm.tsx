@@ -513,6 +513,7 @@ const ProductForm = () => {
   }, [hospitalId, resetFormForNewProduct]);
 
   const handleSubmit = async (options?: { cadastrarOutro?: boolean }) => {
+    if (isSubmitting) return;
     if (!form.nome.trim()) {
       toast({ title: "Erro", description: "Nome do produto é obrigatório.", variant: "destructive" });
       return;

@@ -173,6 +173,7 @@ export function prepareProductForPersistence(product: Product): Product {
       ativo: Boolean(rastreavel.ativo),
       imagem: String(rastreavel.imagem ?? ""),
     },
+    arquivado: Boolean(product.arquivado),
     createdAt: String(product.createdAt ?? new Date().toISOString()),
     updatedAt: String(product.updatedAt ?? new Date().toISOString()),
   };
@@ -210,8 +211,14 @@ interface ProductStore {
   deleteHospital: (id: string) => Promise<void>;
   
   addProduct: (product: Product) => Promise<void>;
+  addProducts: (
+    products: Product[],
+    onProgress?: (completed: number, total: number) => void,
+  ) => Promise<void>;
   updateProduct: (product: Product) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
+  deleteProducts: (ids: string[]) => Promise<void>;
+  archiveProducts: (ids: string[], arquivado?: boolean) => Promise<void>;
 
   addIndustry: (industry: Omit<FabricIndustry, 'createdAt'>) => Promise<void>;
   deleteIndustry: (id: string) => Promise<void>;
@@ -243,12 +250,13 @@ interface ProductStore {
   resetSession: () => void;
 }
 
-const REALTIME_DEBOUNCE_MS = 400;
+const REALTIME_DEBOUNCE_MS = 6_000;
 
 let realtimeSubscribed = false;
 let realtimeChannel: ReturnType<typeof supabase.channel> | null = null;
 let realtimeDebounce: ReturnType<typeof setTimeout> | null = null;
 let currentFetchId = 0;
+let lastFetchTimestamp = 0;
 
 function scheduleRealtimeRefetch(get: () => ProductStore) {
   if (realtimeDebounce) {
@@ -256,7 +264,12 @@ function scheduleRealtimeRefetch(get: () => ProductStore) {
   }
   realtimeDebounce = setTimeout(() => {
     realtimeDebounce = null;
-    void get().fetchData();
+    const now = Date.now();
+    // Throttle fetches so we don't spam disk reads on the Nano instance
+    if (now - lastFetchTimestamp > 5_000) {
+      lastFetchTimestamp = now;
+      void get().fetchData();
+    }
   }, REALTIME_DEBOUNCE_MS);
 }
 
@@ -387,13 +400,20 @@ export const useProductStore = create<ProductStore>()(
     const fetchId = ++currentFetchId;
 
     try {
-      const [hospitalsRes, productsRes, settingsRes, colorsRes, indRes, fabRes] = await Promise.all([
+      const fetchTablesPromise = Promise.all([
         supabase.from('hospitals').select('*').order('created_at', { ascending: true }),
         supabase.from('products').select('*').order('created_at', { ascending: true }),
         supabase.from('company_settings').select('*').limit(1),
         supabase.from('colors').select('*').order('nome', { ascending: true }),
         supabase.from('fabric_industries').select('*').order('nome', { ascending: true }),
         supabase.from('fabric_types').select('*').order('nome', { ascending: true })
+      ]);
+
+      const [hospitalsRes, productsRes, settingsRes, colorsRes, indRes, fabRes] = await Promise.race([
+        fetchTablesPromise,
+        new Promise<any[]>((_, reject) =>
+          setTimeout(() => reject(new Error("Timeout ao buscar dados das tabelas")), 8000),
+        ),
       ]);
 
       if (fetchId !== currentFetchId) {
@@ -439,6 +459,7 @@ export const useProductStore = create<ProductStore>()(
         },
         timbrado: p.timbrado || { ativo: false, imagem: '' },
         rastreavel: p.rastreavel || { ativo: false, imagem: '' },
+        arquivado: Boolean(p.arquivado),
         createdAt: p.created_at,
         updatedAt: p.updated_at
       }));
@@ -480,16 +501,26 @@ export const useProductStore = create<ProductStore>()(
   },
 
   addHospital: async (h) => {
-    const { error } = await supabase.from('hospitals').insert({
+    const newH: Hospital = {
       id: h.id,
       nome: h.nome,
-      cidade: h.cidade
+      cidade: h.cidade || '',
+      createdAt: h.createdAt || new Date().toISOString(),
+    };
+    const { error } = await supabase.from('hospitals').insert({
+      id: newH.id,
+      nome: newH.nome,
+      cidade: newH.cidade
     });
     if (error) {
       console.error('Erro ao adicionar hospital:', error);
       throw error;
     }
-    await get().fetchData();
+    set((state) => ({
+      hospitals: state.hospitals.some((x) => x.id === newH.id)
+        ? state.hospitals.map((x) => (x.id === newH.id ? newH : x))
+        : [...state.hospitals, newH],
+    }));
   },
 
   updateHospital: async (h) => {
@@ -501,7 +532,11 @@ export const useProductStore = create<ProductStore>()(
       console.error('Erro ao atualizar hospital:', error);
       throw error;
     }
-    await get().fetchData();
+    set((state) => ({
+      hospitals: state.hospitals.map((x) =>
+        x.id === h.id ? { ...x, nome: h.nome, cidade: h.cidade || '' } : x
+      ),
+    }));
   },
 
   deleteHospital: async (id) => {
@@ -510,7 +545,10 @@ export const useProductStore = create<ProductStore>()(
       console.error('Erro ao deletar hospital:', error);
       throw error;
     }
-    await get().fetchData();
+    set((state) => ({
+      hospitals: state.hospitals.filter((x) => x.id !== id),
+      products: state.products.filter((p) => p.hospitalId !== id),
+    }));
   },
 
   addProduct: async (product) => {
@@ -535,6 +573,7 @@ export const useProductStore = create<ProductStore>()(
           nome_campo: safe.nomeCampo,
           timbrado: safe.timbrado,
           rastreavel: safe.rastreavel,
+          arquivado: safe.arquivado,
         }),
         PRODUCT_WRITE_TIMEOUT_MS,
         PRODUCT_WRITE_TIMEOUT_MSG,
@@ -555,11 +594,66 @@ export const useProductStore = create<ProductStore>()(
         ? state.products.map((p) => (p.id === safe.id ? safe : p))
         : [...state.products, safe],
     }));
-    void get()
-      .fetchData()
-      .catch((err) => {
-        console.error("fetchData após addProduct:", err);
-      });
+  },
+
+  addProducts: async (
+    newProducts: Product[],
+    onProgress?: (completed: number, total: number) => void,
+  ) => {
+    const safeList = newProducts.map(prepareProductForPersistence);
+    if (safeList.length === 0) return;
+
+    const total = safeList.length;
+    const CHUNK_SIZE = 5;
+    for (let i = 0; i < safeList.length; i += CHUNK_SIZE) {
+      const chunk = safeList.slice(i, i + CHUNK_SIZE);
+      const rows = chunk.map((safe) => ({
+        id: safe.id,
+        hospital_id: safe.hospitalId,
+        nome: safe.nome,
+        categoria: safe.categoria,
+        referencia: safe.referencia,
+        tecido: safe.tecido,
+        tamanhos: safe.tamanhos,
+        cores: safe.cores,
+        dimensoes: safe.dimensoes,
+        detalhes: safe.detalhes,
+        imagem_principal: safe.imagemPrincipal,
+        imagens_detalhe: safe.imagensDetalhe,
+        pintura: safe.pintura,
+        marca_cliente: safe.marcaCliente,
+        nome_campo: safe.nomeCampo,
+        timbrado: safe.timbrado,
+        rastreavel: safe.rastreavel,
+        arquivado: safe.arquivado,
+      }));
+
+      const { error } = await withProductWriteRetry(() =>
+        withTimeout(
+          supabase.from('products').insert(rows),
+          PRODUCT_WRITE_TIMEOUT_MS,
+          PRODUCT_WRITE_TIMEOUT_MSG,
+        ),
+      );
+
+      if (error) {
+        console.error('❌ Erro ao adicionar lote de produtos:', error);
+        throwIfSupabaseError(error);
+      }
+
+      if (onProgress) {
+        const completed = Math.min(i + chunk.length, total);
+        onProgress(completed, total);
+      }
+    }
+
+    set((state) => {
+      const existingIds = new Set(state.products.map((p) => p.id));
+      const newItems = safeList.filter((p) => !existingIds.has(p.id));
+      return {
+        products: [...state.products, ...newItems],
+      };
+    });
   },
 
   updateProduct: async (product) => {
@@ -582,6 +676,7 @@ export const useProductStore = create<ProductStore>()(
           nome_campo: safe.nomeCampo,
           timbrado: safe.timbrado,
           rastreavel: safe.rastreavel,
+          arquivado: safe.arquivado,
           updated_at: new Date().toISOString(),
         }).eq('id', safe.id),
         PRODUCT_WRITE_TIMEOUT_MS,
@@ -601,11 +696,6 @@ export const useProductStore = create<ProductStore>()(
     set((state) => ({
       products: state.products.map((p) => (p.id === safe.id ? safe : p)),
     }));
-    void get()
-      .fetchData()
-      .catch((err) => {
-        console.error("fetchData após updateProduct:", err);
-      });
   },
 
   deleteProduct: async (id) => {
@@ -614,19 +704,59 @@ export const useProductStore = create<ProductStore>()(
       console.error('Erro ao deletar produto:', error);
       throw error;
     }
-    await get().fetchData();
+    set((state) => ({
+      products: state.products.filter((p) => p.id !== id),
+    }));
+  },
+
+  deleteProducts: async (ids) => {
+    if (!ids.length) return;
+    const { error } = await supabase.from('products').delete().in('id', ids);
+    if (error) {
+      console.error('Erro ao deletar produtos em lote:', error);
+      throwIfSupabaseError(error);
+    }
+    set((state) => ({
+      products: state.products.filter((p) => !ids.includes(p.id)),
+    }));
+  },
+
+  archiveProducts: async (ids, arquivado = true) => {
+    if (!ids.length) return;
+    const { error } = await supabase
+      .from('products')
+      .update({ arquivado, updated_at: new Date().toISOString() })
+      .in('id', ids);
+    if (error) {
+      console.error('Erro ao arquivar/desarquivar produtos:', error);
+      throwIfSupabaseError(error);
+    }
+    set((state) => ({
+      products: state.products.map((p) =>
+        ids.includes(p.id) ? { ...p, arquivado } : p
+      ),
+    }));
   },
 
   addIndustry: async (industry) => {
-    const { error } = await supabase.from('fabric_industries').insert({
+    const newInd: FabricIndustry = {
       id: industry.id,
-      nome: industry.nome
+      nome: industry.nome,
+      createdAt: new Date().toISOString(),
+    };
+    const { error } = await supabase.from('fabric_industries').insert({
+      id: newInd.id,
+      nome: newInd.nome
     });
     if (error) {
       console.error('Erro ao adicionar industria:', error);
       throw error;
     }
-    await get().fetchData();
+    set((state) => ({
+      industries: state.industries.some((x) => x.id === newInd.id)
+        ? state.industries.map((x) => (x.id === newInd.id ? newInd : x))
+        : [...state.industries, newInd],
+    }));
   },
 
   deleteIndustry: async (id) => {
@@ -635,20 +765,32 @@ export const useProductStore = create<ProductStore>()(
       console.error('Erro ao deletar industria:', error);
       throw error;
     }
-    await get().fetchData();
+    set((state) => ({
+      industries: state.industries.filter((x) => x.id !== id),
+    }));
   },
 
   addFabricType: async (fabricType) => {
-    const { error } = await supabase.from('fabric_types').insert({
+    const newFab: FabricType = {
       id: fabricType.id,
-      industry_id: fabricType.industryId,
-      nome: fabricType.nome
+      industryId: fabricType.industryId,
+      nome: fabricType.nome,
+      createdAt: new Date().toISOString(),
+    };
+    const { error } = await supabase.from('fabric_types').insert({
+      id: newFab.id,
+      industry_id: newFab.industryId,
+      nome: newFab.nome
     });
     if (error) {
       console.error('Erro ao adicionar tecido:', error);
       throw error;
     }
-    await get().fetchData();
+    set((state) => ({
+      fabricTypes: state.fabricTypes.some((x) => x.id === newFab.id)
+        ? state.fabricTypes.map((x) => (x.id === newFab.id ? newFab : x))
+        : [...state.fabricTypes, newFab],
+    }));
   },
 
   updateFabricType: async (fabricType) => {
@@ -660,7 +802,11 @@ export const useProductStore = create<ProductStore>()(
       console.error('Erro ao atualizar tecido:', error);
       throw error;
     }
-    await get().fetchData();
+    set((state) => ({
+      fabricTypes: state.fabricTypes.map((x) =>
+        x.id === fabricType.id ? { ...x, ...fabricType } : x
+      ),
+    }));
   },
 
   deleteFabricType: async (id) => {
@@ -669,28 +815,51 @@ export const useProductStore = create<ProductStore>()(
       console.error('Erro ao deletar tecido:', error);
       throw error;
     }
-    await get().fetchData();
+    set((state) => ({
+      fabricTypes: state.fabricTypes.filter((x) => x.id !== id),
+      colors: state.colors.filter((c) => c.fabricTypeId !== id),
+    }));
   },
 
   addColor: async (color) => {
-    const { error } = await supabase.from('colors').insert({
+    const newCol: BaseColor = {
       id: color.id,
-      fabric_type_id: color.fabricTypeId,
+      fabricTypeId: color.fabricTypeId,
       codigo: color.codigo,
       nome: color.nome,
-      hex: color.hex
+      hex: color.hex,
+      createdAt: new Date().toISOString(),
+    };
+    const { error } = await supabase.from('colors').insert({
+      id: newCol.id,
+      fabric_type_id: newCol.fabricTypeId,
+      codigo: newCol.codigo,
+      nome: newCol.nome,
+      hex: newCol.hex
     });
     if (error) {
       console.error('Erro ao adicionar cor:', error);
       throw error;
     }
-    await get().fetchData();
+    set((state) => ({
+      colors: state.colors.some((x) => x.id === newCol.id)
+        ? state.colors.map((x) => (x.id === newCol.id ? newCol : x))
+        : [...state.colors, newCol],
+    }));
   },
 
   addColors: async (items) => {
     if (!items.length) return;
+    const newCols: BaseColor[] = items.map((color) => ({
+      id: color.id,
+      fabricTypeId: color.fabricTypeId,
+      codigo: color.codigo,
+      nome: color.nome,
+      hex: color.hex,
+      createdAt: new Date().toISOString(),
+    }));
     const { error } = await supabase.from('colors').insert(
-      items.map((color) => ({
+      newCols.map((color) => ({
         id: color.id,
         fabric_type_id: color.fabricTypeId,
         codigo: color.codigo,
@@ -702,7 +871,11 @@ export const useProductStore = create<ProductStore>()(
       console.error('Erro ao adicionar cores:', error);
       throw error;
     }
-    await get().fetchData();
+    set((state) => {
+      const existingIds = new Set(state.colors.map((c) => c.id));
+      const toAdd = newCols.filter((c) => !existingIds.has(c.id));
+      return { colors: [...state.colors, ...toAdd] };
+    });
   },
 
   updateColor: async (color) => {
@@ -719,7 +892,11 @@ export const useProductStore = create<ProductStore>()(
       console.error('Erro ao atualizar cor:', error);
       throw error;
     }
-    await get().fetchData();
+    set((state) => ({
+      colors: state.colors.map((c) =>
+        c.id === color.id ? { ...c, ...color } : c
+      ),
+    }));
   },
 
   deleteColor: async (id) => {
@@ -728,7 +905,9 @@ export const useProductStore = create<ProductStore>()(
       console.error('Erro ao deletar cor:', error);
       throw error;
     }
-    await get().fetchData();
+    set((state) => ({
+      colors: state.colors.filter((c) => c.id !== id),
+    }));
   },
 
   deleteColors: async (ids) => {
@@ -738,7 +917,9 @@ export const useProductStore = create<ProductStore>()(
       console.error('Erro ao deletar cores em lote:', error);
       throw error;
     }
-    await get().fetchData();
+    set((state) => ({
+      colors: state.colors.filter((c) => !ids.includes(c.id)),
+    }));
   },
 
   applyColorEdits: async ({ upserts, inserts, deleteIds }) => {
@@ -780,7 +961,29 @@ export const useProductStore = create<ProductStore>()(
         throw error;
       }
     }
-    await get().fetchData();
+    set((state) => {
+      let updated = state.colors;
+      if (deleteIds.length) {
+        const delSet = new Set(deleteIds);
+        updated = updated.filter((c) => !delSet.has(c.id));
+      }
+      if (upserts.length) {
+        const upMap = new Map(upserts.map((u) => [u.id, u]));
+        updated = updated.map((c) => upMap.get(c.id) ? { ...c, ...upMap.get(c.id)! } : c);
+      }
+      if (inserts.length) {
+        const newItems: BaseColor[] = inserts.map((ins) => ({
+          id: ins.id,
+          fabricTypeId: ins.fabricTypeId,
+          codigo: ins.codigo,
+          nome: ins.nome,
+          hex: ins.hex,
+          createdAt: new Date().toISOString(),
+        }));
+        updated = [...updated, ...newItems];
+      }
+      return { colors: updated };
+    });
   },
 
   updateSettings: async (newSettings) => {
@@ -819,7 +1022,7 @@ export const useProductStore = create<ProductStore>()(
           throw insertError;
         }
       }
-      await get().fetchData();
+      set({ settings: updated });
     } catch (err) {
       console.error('Erro crítico no updateSettings:', err);
       throw err;
