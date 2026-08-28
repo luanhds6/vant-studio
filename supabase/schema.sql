@@ -280,23 +280,27 @@ CREATE POLICY "Allow authenticated to read settings" ON public.company_settings 
 
 -- 7.8 CONTRACT_MODELS
 DROP POLICY IF EXISTS "Enable all for authenticated users" ON public.contract_models;
-CREATE POLICY "Enable all for authenticated users" ON public.contract_models FOR ALL TO authenticated USING (true);
+DROP POLICY IF EXISTS "Enable all on contract_models" ON public.contract_models;
+CREATE POLICY "Enable all on contract_models" ON public.contract_models FOR ALL USING (true) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Enable select for everyone" ON public.contract_models;
-CREATE POLICY "Enable select for everyone" ON public.contract_models FOR SELECT USING (true);
+CREATE POLICY "Enable select for everyone on contract_models" ON public.contract_models FOR SELECT USING (true);
 
 -- 7.9 CONTRACTS
 DROP POLICY IF EXISTS "Enable select for everyone on contracts" ON public.contracts;
 CREATE POLICY "Enable select for everyone on contracts" ON public.contracts FOR SELECT USING (true);
 
 DROP POLICY IF EXISTS "Enable insert for authenticated users only" ON public.contracts;
-CREATE POLICY "Enable insert for authenticated users only" ON public.contracts FOR INSERT TO authenticated WITH CHECK (true);
+DROP POLICY IF EXISTS "Enable insert for all on contracts" ON public.contracts;
+CREATE POLICY "Enable insert for all on contracts" ON public.contracts FOR INSERT WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Enable update for anyone (sign contract)" ON public.contracts;
-CREATE POLICY "Enable update for anyone (sign contract)" ON public.contracts FOR UPDATE USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Enable update for all on contracts" ON public.contracts;
+CREATE POLICY "Enable update for all on contracts" ON public.contracts FOR UPDATE USING (true) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Enable delete for authenticated users" ON public.contracts;
-CREATE POLICY "Enable delete for authenticated users" ON public.contracts FOR DELETE TO authenticated USING (true);
+DROP POLICY IF EXISTS "Enable delete for all on contracts" ON public.contracts;
+CREATE POLICY "Enable delete for all on contracts" ON public.contracts FOR DELETE USING (true);
 
 -- ==============================================================================
 -- 8. STORAGE BUCKET (CONTRATOS)
@@ -314,3 +318,6 @@ CREATE POLICY "Public Upload" ON storage.objects FOR INSERT WITH CHECK (bucket_i
 
 DROP POLICY IF EXISTS "Public Update" ON storage.objects;
 CREATE POLICY "Public Update" ON storage.objects FOR UPDATE WITH CHECK (bucket_id = 'contracts');
+
+DROP POLICY IF EXISTS "Public Delete" ON storage.objects;
+CREATE POLICY "Public Delete" ON storage.objects FOR DELETE USING (bucket_id = 'contracts');

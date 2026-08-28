@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactNode } from "react";
 import { Product, CompanySettings, type ProductColor } from "@/types/Product";
+import { Palette } from "lucide-react";
 
 export type CatalogOrientation = "portrait" | "landscape";
 
@@ -12,6 +13,7 @@ interface CatalogPageProps {
   product: Product;
   settings: CompanySettings;
   orientation?: CatalogOrientation;
+  onSimulateColor?: (product: Product, colorHex?: string) => void;
 }
 
 function normalizeHexForSwatch(hex: string | undefined): string {
@@ -26,17 +28,32 @@ function normalizeHexForSwatch(hex: string | undefined): string {
   return "#888888";
 }
 
-/** Amostra da cor (`hex`) + nome — layout da pré-visualização; nudge no PDF via onclone. */
-function CatalogColorSwatchRow({ c, compact }: { c: ProductColor; compact: boolean }) {
+/** Amostra da cor (`hex`) + nome — layout da pré-visualização; clique para simulação. */
+function CatalogColorSwatchRow({
+  c,
+  compact,
+  onClick,
+}: {
+  c: ProductColor;
+  compact: boolean;
+  onClick?: () => void;
+}) {
   const fill = normalizeHexForSwatch(c.hex);
   const sw = compact ? "3.2mm" : "3.8mm";
   const fontSize = compact ? "9px" : "10.5px";
   const gap = compact ? "1.2mm" : "1.8mm";
   return (
-    <div className="catalog-color-swatch-row" style={{ display: "flex", alignItems: "center", gap }}>
+    <div
+      className={`catalog-color-swatch-row ${
+        onClick ? "cursor-pointer select-none group transition-all hover:scale-105" : ""
+      }`}
+      onClick={onClick}
+      title={onClick ? `Clique para simular o produto na cor «${c.nome}»` : undefined}
+      style={{ display: "flex", alignItems: "center", gap }}
+    >
       <div
         aria-hidden
-        className="catalog-color-dot"
+        className="catalog-color-dot group-hover:ring-2 group-hover:ring-orange-500/60 transition-all"
         style={{
           width: sw,
           height: sw,
@@ -50,7 +67,7 @@ function CatalogColorSwatchRow({ c, compact }: { c: ProductColor; compact: boole
         }}
       />
       <span
-        className="catalog-color-label"
+        className="catalog-color-label group-hover:text-orange-600 transition-colors"
         style={{ fontSize, fontWeight: 700, color: "#000000", lineHeight: 1.25 }}
       >
         {c.nome}
@@ -95,6 +112,7 @@ export const CatalogPage = ({
   product,
   settings,
   orientation = "portrait",
+  onSimulateColor,
 }: CatalogPageProps) => {
   const isLandscape = orientation === "landscape";
 
@@ -117,7 +135,7 @@ export const CatalogPage = ({
   return (
     <div className="catalog-page bg-white text-black" style={shellStyle}>
       {isLandscape ? (
-        <CatalogLandscapeBody product={product} settings={settings} />
+        <CatalogLandscapeBody product={product} settings={settings} onSimulateColor={onSimulateColor} />
       ) : (
         <>
           {/* Header */}
@@ -161,11 +179,16 @@ export const CatalogPage = ({
           <div style={{ display: "flex", gap: "5mm" }}>
             <div style={{ flex: "1.2", minWidth: 0 }}>
               {product.imagemPrincipal ? (
-                <div style={{
-                  border: "1.5px solid #888888", borderRadius: "2mm", padding: "3mm",
-                  background: "#ffffff", display: "flex", alignItems: "center", justifyContent: "center",
-                  minHeight: "80mm",
-                }}>
+                <div
+                  onClick={onSimulateColor ? () => onSimulateColor(product) : undefined}
+                  className={onSimulateColor ? "group relative cursor-pointer" : ""}
+                  style={{
+                    border: "1.5px solid #888888", borderRadius: "2mm", padding: "3mm",
+                    background: "#ffffff", display: "flex", alignItems: "center", justifyContent: "center",
+                    minHeight: "80mm",
+                  }}
+                  title={onSimulateColor ? "Clique para simular cores da peça" : undefined}
+                >
                   <img
                     src={product.imagemPrincipal}
                     alt={product.nome}
@@ -178,6 +201,12 @@ export const CatalogPage = ({
                       objectFit: "contain",
                     }}
                   />
+                  {onSimulateColor && (
+                    <div className="absolute bottom-2 right-2 bg-black/80 hover:bg-black text-white text-[10px] font-semibold py-1 px-2.5 rounded-full flex items-center gap-1.5 shadow-md backdrop-blur-xs transition-all group-hover:scale-105 opacity-0 group-hover:opacity-100 print:hidden">
+                      <Palette className="h-3 w-3 text-orange-400" />
+                      <span>Simular cores</span>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div style={{
@@ -258,13 +287,13 @@ export const CatalogPage = ({
                             alt=""
                             className="catalog-detail-marker"
                             style={{
-                              width: "5mm",
-                              height: "5mm",
-                              flexShrink: 0,
-                              borderRadius: "50%",
-                              objectFit: "cover",
-                              border: "1.5px solid #888888",
+                              width: "7mm",
+                              height: "7mm",
+                              objectFit: "contain",
+                              borderRadius: "1mm",
+                              border: "1px solid #777777",
                               background: "#ffffff",
+                              flexShrink: 0,
                             }}
                           />
                         ) : (
@@ -304,7 +333,12 @@ export const CatalogPage = ({
                 <InfoSection title="CORES">
                   <div style={{ display: "flex", flexWrap: "wrap", gap: "2mm", padding: "2.5mm 3.5mm", alignItems: "center" }}>
                     {product.cores.map((c) => (
-                      <CatalogColorSwatchRow key={c.id} c={c} compact={false} />
+                      <CatalogColorSwatchRow
+                        key={c.id}
+                        c={c}
+                        compact={false}
+                        onClick={onSimulateColor ? () => onSimulateColor(product, c.hex) : undefined}
+                      />
                     ))}
                   </div>
                 </InfoSection>
@@ -513,7 +547,10 @@ export const CatalogPage = ({
 };
 
 /** Blocos da coluna direita em paisagem: ordem fixa; distribuição em 2 colunas flex (ímpar/par) evita lacunas do CSS Grid por linhas. */
-function getLandscapeInfoBlocks(product: Product): { id: string; node: ReactNode }[] {
+function getLandscapeInfoBlocks(
+  product: Product,
+  onSimulateColor?: (product: Product, colorHex?: string) => void,
+): { id: string; node: ReactNode }[] {
   const blocks: { id: string; node: ReactNode }[] = [];
 
   if (product.tecido) {
@@ -554,7 +591,12 @@ function getLandscapeInfoBlocks(product: Product): { id: string; node: ReactNode
         <InfoSection title="CORES" compact>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "1.5mm", padding: "1.5mm 2mm", alignItems: "center" }}>
             {product.cores.map((c) => (
-              <CatalogColorSwatchRow key={c.id} c={c} compact />
+              <CatalogColorSwatchRow
+                key={c.id}
+                c={c}
+                compact
+                onClick={onSimulateColor ? () => onSimulateColor(product, c.hex) : undefined}
+              />
             ))}
           </div>
         </InfoSection>
@@ -699,12 +741,14 @@ const landscapeInfoCardShell: CSSProperties = {
 function CatalogLandscapeBody({
   product,
   settings,
+  onSimulateColor,
 }: {
   product: Product;
   settings: CompanySettings;
+  onSimulateColor?: (product: Product, colorHex?: string) => void;
 }) {
   const padX = "6mm";
-  const infoBlocks = getLandscapeInfoBlocks(product);
+  const infoBlocks = getLandscapeInfoBlocks(product, onSimulateColor);
   const infoColLeft = infoBlocks.filter((_, i) => i % 2 === 0);
   const infoColRight = infoBlocks.filter((_, i) => i % 2 === 1);
 
@@ -754,11 +798,16 @@ function CatalogLandscapeBody({
       <div style={{ display: "flex", gap: "4mm", alignItems: "flex-start" }}>
         <div style={{ flex: "1.12", minWidth: 0 }}>
           {product.imagemPrincipal ? (
-            <div style={{
-              border: "1px solid #b8b8b8", borderRadius: "2mm", padding: "2mm",
-              background: "#f7f7f7", display: "flex", alignItems: "center", justifyContent: "center",
-              minHeight: "52mm", maxHeight: "74mm",
-            }}>
+            <div
+              onClick={onSimulateColor ? () => onSimulateColor(product) : undefined}
+              className={onSimulateColor ? "group relative cursor-pointer" : ""}
+              style={{
+                border: "1px solid #b8b8b8", borderRadius: "2mm", padding: "2mm",
+                background: "#f7f7f7", display: "flex", alignItems: "center", justifyContent: "center",
+                minHeight: "52mm", maxHeight: "74mm",
+              }}
+              title={onSimulateColor ? "Clique para simular cores da peça" : undefined}
+            >
               <img
                 src={product.imagemPrincipal}
                 alt={product.nome}
@@ -771,6 +820,12 @@ function CatalogLandscapeBody({
                   objectFit: "contain",
                 }}
               />
+              {onSimulateColor && (
+                <div className="absolute bottom-1.5 right-1.5 bg-black/80 hover:bg-black text-white text-[9px] font-semibold py-0.5 px-2 rounded-full flex items-center gap-1 shadow-md backdrop-blur-xs transition-all group-hover:scale-105 opacity-0 group-hover:opacity-100 print:hidden">
+                  <Palette className="h-2.5 w-2.5 text-orange-400" />
+                  <span>Simular</span>
+                </div>
+              )}
             </div>
           ) : (
             <div style={{

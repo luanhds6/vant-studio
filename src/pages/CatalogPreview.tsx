@@ -7,6 +7,7 @@ import { canAccessRouteHome, getDefaultLandingPath } from "@/lib/routeAccess";
 import { cn } from "@/lib/utils";
 import { CatalogPage, type CatalogOrientation } from "@/components/catalog/CatalogPage";
 import { CatalogEditProductDialog } from "@/components/catalog/CatalogEditProductDialog";
+import { ProductColorSimulatorDialog } from "@/components/catalog/ProductColorSimulatorDialog";
 import type { Product } from "@/types/Product";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -15,7 +16,7 @@ import { Label } from "@/components/ui/label";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { ArrowLeft, Download, Eye, Loader2, LayoutGrid, List, ChevronLeft, ChevronRight, Maximize2, Minimize2, Pencil } from "lucide-react";
+import { ArrowLeft, Download, Eye, Loader2, LayoutGrid, List, ChevronLeft, ChevronRight, Maximize2, Minimize2, Pencil, Palette } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { applyCatalogPdfAlignment } from "@/lib/catalogPdfAlignment";
 
@@ -73,6 +74,8 @@ const CatalogPreview = () => {
   const [isProductsExpanded, setIsProductsExpanded] = useState(true);
   const [activeZoomedProduct, setActiveZoomedProduct] = useState<any | null>(null);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [simulatingProduct, setSimulatingProduct] = useState<Product | null>(null);
+  const [simulatingHex, setSimulatingHex] = useState<string | undefined>(undefined);
   const [previewLayout, setPreviewLayout] = useState<"list" | "grid">("list");
   const [catalogOrientation, setCatalogOrientation] = useState<CatalogOrientation>("portrait");
   const captureRef = useRef<HTMLDivElement>(null);
@@ -418,9 +421,20 @@ const CatalogPreview = () => {
                           {p.categoria}
                         </div>
                       </div>
-                      <div className="flex gap-1">
+                      <div className="flex gap-1 items-center">
                         {p.cores.slice(0, 4).map((c) => (
-                          <div key={c.id} className="h-4 w-4 rounded-full border" style={{ backgroundColor: c.hex }} />
+                          <button
+                            key={c.id}
+                            type="button"
+                            className="h-4 w-4 rounded-full border border-black/20 hover:scale-125 transition-transform"
+                            style={{ backgroundColor: c.hex }}
+                            title={`Simular «${p.nome}» na cor ${c.nome}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSimulatingProduct(p);
+                              setSimulatingHex(c.hex);
+                            }}
+                          />
                         ))}
                       </div>
                     </div>
@@ -500,6 +514,17 @@ const CatalogPreview = () => {
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
+                            setSimulatingProduct(product);
+                            setSimulatingHex(undefined);
+                          }}
+                          className="w-full max-w-[110px] text-white text-[11px] font-semibold flex items-center justify-center gap-1.5 bg-orange-600 hover:bg-orange-700 py-1.5 rounded-md shadow-sm transition-transform hover:scale-105"
+                        >
+                          <Palette className="h-3.5 w-3.5" /> Simular Cor
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
                             setEditingProduct(product);
                           }}
                           className="w-full max-w-[110px] text-white text-[11px] font-semibold flex items-center justify-center gap-1.5 bg-primary hover:bg-primary/90 py-1.5 rounded-md shadow-sm transition-transform hover:scale-105"
@@ -537,19 +562,42 @@ const CatalogPreview = () => {
                           </span>
                         )}
                       </div>
-                      <Button
-                        size="sm"
-                        variant="default"
-                        onClick={() => setEditingProduct(product)}
-                        className="gap-1.5 h-8 text-xs font-semibold shadow-xs"
-                      >
-                        <Pencil className="h-3.5 w-3.5" /> Editar Produto
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        {product.imagemPrincipal && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setSimulatingProduct(product);
+                              setSimulatingHex(undefined);
+                            }}
+                            className="gap-1.5 h-8 text-xs font-semibold border-orange-500/40 text-orange-600 dark:text-orange-400 hover:bg-orange-500/10"
+                          >
+                            <Palette className="h-3.5 w-3.5" /> Simular Cores
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="default"
+                          onClick={() => setEditingProduct(product)}
+                          className="gap-1.5 h-8 text-xs font-semibold shadow-xs"
+                        >
+                          <Pencil className="h-3.5 w-3.5" /> Editar Produto
+                        </Button>
+                      </div>
                     </div>
 
                     {/* Folha A4 */}
                     <div className="shadow-xl bg-white rounded-lg border border-border overflow-hidden">
-                      <CatalogPage product={product} settings={settings} orientation={catalogOrientation} />
+                      <CatalogPage
+                        product={product}
+                        settings={settings}
+                        orientation={catalogOrientation}
+                        onSimulateColor={(prod, hex) => {
+                          setSimulatingProduct(prod);
+                          setSimulatingHex(hex);
+                        }}
+                      />
                     </div>
                   </div>
                 );
@@ -588,6 +636,10 @@ const CatalogPreview = () => {
         orientation={catalogOrientation}
         onClose={() => setActiveZoomedProduct(null)}
         onEdit={(p) => setEditingProduct(p)}
+        onSimulateColor={(prod, hex) => {
+          setSimulatingProduct(prod);
+          setSimulatingHex(hex);
+        }}
       />
 
       <CatalogEditProductDialog
@@ -599,6 +651,13 @@ const CatalogPreview = () => {
             setActiveZoomedProduct(updated);
           }
         }}
+      />
+
+      <ProductColorSimulatorDialog
+        product={simulatingProduct}
+        open={Boolean(simulatingProduct)}
+        onOpenChange={(open) => !open && setSimulatingProduct(null)}
+        initialHex={simulatingHex}
       />
     </div>
   );
@@ -626,9 +685,10 @@ interface ModalPreviewDialogProps {
   orientation: CatalogOrientation;
   onClose: () => void;
   onEdit: (product: Product) => void;
+  onSimulateColor?: (product: Product, hex?: string) => void;
 }
 
-function ModalPreviewDialog({ products, initialIndex, settings, orientation, onClose, onEdit }: ModalPreviewDialogProps) {
+function ModalPreviewDialog({ products, initialIndex, settings, orientation, onClose, onEdit, onSimulateColor }: ModalPreviewDialogProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
 
   // Sync state with open item index
@@ -699,11 +759,24 @@ function ModalPreviewDialog({ products, initialIndex, settings, orientation, onC
     <Dialog open={initialIndex !== -1} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-[98vw] max-h-[98vh] p-0 bg-slate-950/92 border-0 flex items-center justify-center overflow-hidden outline-none">
         
-        {/* Top floating bar with product title and Edit button */}
+        {/* Top floating bar with product title and Edit/Simulate buttons */}
         <div className="absolute top-3 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-black/80 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/20 text-white shadow-xl">
           <span className="text-xs font-semibold">
             Folha {activeIndex + 1} de {products.length} · {product?.nome || ""}
           </span>
+          {product?.imagemPrincipal && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (product && onSimulateColor) onSimulateColor(product);
+              }}
+              className="h-7 text-xs gap-1.5 border-orange-400/50 bg-orange-500/20 text-orange-200 hover:bg-orange-500/30 rounded-full px-3 shadow-sm"
+            >
+              <Palette className="h-3.5 w-3.5 text-orange-400" /> Simular Cor
+            </Button>
+          )}
           <Button
             size="sm"
             variant="default"
@@ -738,7 +811,12 @@ function ModalPreviewDialog({ products, initialIndex, settings, orientation, onC
             className="bg-white rounded-lg shadow-2xl overflow-x-hidden overflow-y-auto [scrollbar-width:thin] transition-all duration-300"
           >
             <div style={{ zoom: modalScale, width: `${a4W}mm` }}>
-              <CatalogPage product={product} settings={settings} orientation={orientation} />
+              <CatalogPage
+                product={product}
+                settings={settings}
+                orientation={orientation}
+                onSimulateColor={onSimulateColor}
+              />
             </div>
           </div>
 
