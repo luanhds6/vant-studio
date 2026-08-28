@@ -18,15 +18,21 @@ import {
   FileJson,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
+  Info,
   Package,
   Search,
   CheckSquare,
   Square,
-  Sparkles,
-  Layers,
+  Ban,
 } from "lucide-react";
 import { Product, Hospital } from "@/types/Product";
 import { useProductStore } from "@/store/productStore";
+import {
+  analyzeImportBatch,
+  BatchAnalysisResult,
+  isDuplicateProduct,
+} from "@/lib/productDuplicateDetector";
 import { toast } from "sonner";
 
 interface ImportProductsDialogProps {
@@ -39,7 +45,7 @@ interface ParsedImportData {
   products: Product[];
   sourceName?: string;
   exportDate?: string;
-  totalCount: number;
+  analysis: BatchAnalysisResult;
 }
 
 export const ImportProductsDialog: React.FC<ImportProductsDialogProps> = ({
@@ -244,20 +250,33 @@ export const ImportProductsDialog: React.FC<ImportProductsDialogProps> = ({
         };
       });
 
+      // Cruza com os produtos existentes do hospital para detectar duplicatas
+      const existingHospitalProducts = useProductStore
+        .getState()
+        .products.filter((p) => p.hospitalId === hospital.id);
+
+      const analysis = analyzeImportBatch(validProducts, existingHospitalProducts);
+
       setParsedData({
         products: validProducts,
         sourceName,
         exportDate,
-        totalCount: validProducts.length,
+        analysis,
       });
 
-      // Default: all selected
-      const allSelected = new Set<number>();
-      for (let i = 0; i < validProducts.length; i++) {
-        allSelected.add(i);
-      }
-      setSelectedIndices(allSelected);
+      // Pré-seleciona exclusivamente os produtos NOVOS (não duplicados)
+      setSelectedIndices(new Set(analysis.initialSelectedIndices));
       setError(null);
+
+      if (analysis.isAllDuplicates) {
+        toast.warning(
+          `Todos os ${analysis.totalCount} produtos deste arquivo já estão cadastrados em «${hospital.nome}». A importação foi bloqueada para evitar repetições.`,
+        );
+      } else if (analysis.duplicateCount > 0) {
+        toast.info(
+          `${analysis.duplicateCount} produto(s) já cadastrado(s) foram ignorados automaticamente. ${analysis.newCount} novo(s) produto(s) pronto(s) para importação.`,
+        );
+      }
     } catch (err: any) {
       console.error("Erro ao analisar arquivo JSON:", err);
       setError(err.message || "Erro ao ler o arquivo JSON. Certifique-se de que é um JSON válido.");
@@ -306,6 +325,10 @@ export const ImportProductsDialog: React.FC<ImportProductsDialogProps> = ({
   };
 
   const toggleSelectIndex = (index: number) => {
+    if (!parsedData) return;
+    const item = parsedData.analysis.analyzedProducts[index];
+    if (item?.isDuplicate) return; // Bloqueia seleção de itens duplicados
+
     setSelectedIndices((prev) => {
       const next = new Set(prev);
       if (next.has(index)) {
@@ -318,13 +341,20 @@ export const ImportProductsDialog: React.FC<ImportProductsDialogProps> = ({
   };
 
   const handleSelectAllFiltered = (filteredIndices: number[]) => {
+    if (!parsedData) return;
+    // Considera apenas itens que não são duplicados
+    const eligibleIndices = filteredIndices.filter(
+      (idx) => !parsedData.analysis.analyzedProducts[idx]?.isDuplicate,
+    );
+    if (eligibleIndices.length === 0) return;
+
     setSelectedIndices((prev) => {
       const next = new Set(prev);
-      const allFilteredSelected = filteredIndices.every((idx) => next.has(idx));
-      if (allFilteredSelected) {
-        filteredIndices.forEach((idx) => next.delete(idx));
+      const allEligibleSelected = eligibleIndices.every((idx) => next.has(idx));
+      if (allEligibleSelected) {
+        eligibleIndices.forEach((idx) => next.delete(idx));
       } else {
-        filteredIndices.forEach((idx) => next.add(idx));
+        eligibleIndices.forEach((idx) => next.add(idx));
       }
       return next;
     });
@@ -334,35 +364,41 @@ export const ImportProductsDialog: React.FC<ImportProductsDialogProps> = ({
   const filteredProductItems = useMemo(() => {
     if (!parsedData) return [];
     const term = searchTerm.toLowerCase().trim();
-    return parsedData.products
-      .map((product, originalIndex) => ({ product, originalIndex }))
-      .filter(({ product }) => {
-        if (!term) return true;
-        return (
-          product.nome.toLowerCase().includes(term) ||
-          product.referencia.toLowerCase().includes(term) ||
-          product.categoria.toLowerCase().includes(term) ||
-          product.tecido.toLowerCase().includes(term)
-        );
-      });
+    return parsedData.analysis.analyzedProducts.filter(({ product }) => {
+      if (!term) return true;
+      return (
+        product.nome.toLowerCase().includes(term) ||
+        product.referencia.toLowerCase().includes(term) ||
+        product.categoria.toLowerCase().includes(term) ||
+        product.tecido.toLowerCase().includes(term)
+      );
+    });
   }, [parsedData, searchTerm]);
 
-  const filteredIndices = useMemo(
-    () => filteredProductItems.map((item) => item.originalIndex),
+  const filteredEligibleIndices = useMemo(
+    () =>
+      filteredProductItems
+        .filter((item) => !item.isDuplicate)
+        .map((item) => item.originalIndex),
     [filteredProductItems],
   );
 
   const isAllFilteredSelected =
-    filteredIndices.length > 0 &&
-    filteredIndices.every((idx) => selectedIndices.has(idx));
+    filteredEligibleIndices.length > 0 &&
+    filteredEligibleIndices.every((idx) => selectedIndices.has(idx));
 
   const handleExecuteImport = async () => {
     if (!parsedData || selectedIndices.size === 0) return;
 
-    const itemsToImport = Array.from(selectedIndices).map((idx) => {
-      const orig = parsedData.products[idx];
-      // Generate clean new IDs for the imported product and all subcomponents
-      return {
+    // Verificação defensiva em tempo de execução
+    const currentExisting = useProductStore
+      .getState()
+      .products.filter((p) => p.hospitalId === hospital.id);
+
+    const itemsToImport = Array.from(selectedIndices)
+      .map((idx) => parsedData.products[idx])
+      .filter((p) => Boolean(p) && !isDuplicateProduct(p, currentExisting).isDuplicate)
+      .map((orig) => ({
         ...orig,
         id: crypto.randomUUID(),
         hospitalId: hospital.id,
@@ -384,8 +420,12 @@ export const ImportProductsDialog: React.FC<ImportProductsDialogProps> = ({
         })),
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-      };
-    });
+      }));
+
+    if (itemsToImport.length === 0) {
+      toast.warning("Nenhum produto novo elegível para importação (todos já estão cadastrados).");
+      return;
+    }
 
     setIsImporting(true);
     setImportProgress({ current: 0, total: itemsToImport.length });
@@ -395,7 +435,7 @@ export const ImportProductsDialog: React.FC<ImportProductsDialogProps> = ({
         setImportProgress({ current: completed, total });
       });
       toast.success(
-        `${itemsToImport.length} produto${itemsToImport.length !== 1 ? "s" : ""} importado${itemsToImport.length !== 1 ? "s" : ""} com sucesso para «${hospital.nome}»!`,
+        `${itemsToImport.length} produto${itemsToImport.length !== 1 ? "s" : ""} novo${itemsToImport.length !== 1 ? "s" : ""} importado${itemsToImport.length !== 1 ? "s" : ""} com sucesso para «${hospital.nome}»!`,
       );
       handleClose(false);
     } catch (err: any) {
@@ -463,7 +503,7 @@ export const ImportProductsDialog: React.FC<ImportProductsDialogProps> = ({
                 </p>
               </div>
               <Badge variant="secondary" className="text-xs font-normal">
-                Suporta exportações completas do Vant Studio ou listas de produtos JSON
+                Com barramento inteligente contra produtos duplicados e reimportação
               </Badge>
             </div>
 
@@ -481,11 +521,9 @@ export const ImportProductsDialog: React.FC<ImportProductsDialogProps> = ({
               <div className="flex items-center gap-2 min-w-0">
                 <FileJson className="h-5 w-5 text-primary shrink-0" />
                 <div className="truncate">
-                  <p className="text-sm font-semibold truncate">
-                    {file?.name}
-                  </p>
+                  <p className="text-sm font-semibold truncate">{file?.name}</p>
                   <p className="text-xs text-muted-foreground">
-                    {parsedData.totalCount} produto{parsedData.totalCount !== 1 ? "s" : ""} encontrado{parsedData.totalCount !== 1 ? "s" : ""}
+                    {parsedData.analysis.totalCount} produto{parsedData.analysis.totalCount !== 1 ? "s" : ""} no arquivo
                     {parsedData.sourceName ? ` · Origem: ${parsedData.sourceName}` : ""}
                   </p>
                 </div>
@@ -500,6 +538,36 @@ export const ImportProductsDialog: React.FC<ImportProductsDialogProps> = ({
                 Trocar arquivo
               </Button>
             </div>
+
+            {/* Alerta de Barramento: Arquivo 100% Repetido */}
+            {parsedData.analysis.isAllDuplicates ? (
+              <div className="flex items-start gap-3 p-3.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200">
+                <AlertTriangle className="h-5 w-5 mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                <div className="space-y-1">
+                  <p className="font-semibold text-sm">Arquivo já importado / Nenhum produto novo</p>
+                  <p className="text-xs text-muted-foreground">
+                    Todos os {parsedData.analysis.totalCount} produtos contidos neste arquivo já
+                    estão cadastrados para «<strong>{hospital.nome}</strong>». A importação foi
+                    bloqueada para evitar duplicidade.
+                  </p>
+                </div>
+              </div>
+            ) : parsedData.analysis.duplicateCount > 0 ? (
+              /* Alerta Informativo de Filtragem Parcial */
+              <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-900 dark:text-blue-200 text-xs">
+                <div className="flex items-center gap-2">
+                  <Info className="h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
+                  <span>
+                    <strong>{parsedData.analysis.newCount} produtos novos</strong> selecionados para
+                    importação.{" "}
+                    <span className="text-muted-foreground">
+                      ({parsedData.analysis.duplicateCount} produto(s) já cadastrado(s) foram
+                      ignorados automaticamente).
+                    </span>
+                  </span>
+                </div>
+              </div>
+            ) : null}
 
             {/* Filter and selection bar */}
             <div className="flex items-center justify-between gap-2">
@@ -518,18 +586,20 @@ export const ImportProductsDialog: React.FC<ImportProductsDialogProps> = ({
                 variant="outline"
                 size="sm"
                 className="text-xs h-9"
-                onClick={() => handleSelectAllFiltered(filteredIndices)}
-                disabled={filteredIndices.length === 0 || isImporting}
+                onClick={() =>
+                  handleSelectAllFiltered(filteredProductItems.map((i) => i.originalIndex))
+                }
+                disabled={filteredEligibleIndices.length === 0 || isImporting}
               >
                 {isAllFilteredSelected ? (
                   <>
                     <Square className="mr-1.5 h-3.5 w-3.5" />
-                    Desmarcar visíveis
+                    Desmarcar novos
                   </>
                 ) : (
                   <>
                     <CheckSquare className="mr-1.5 h-3.5 w-3.5" />
-                    Selecionar visíveis
+                    Selecionar novos ({filteredEligibleIndices.length})
                   </>
                 )}
               </Button>
@@ -540,7 +610,12 @@ export const ImportProductsDialog: React.FC<ImportProductsDialogProps> = ({
               <div className="p-2 border-b bg-muted/30 flex items-center justify-between text-xs font-medium text-muted-foreground px-3">
                 <span>Produtos a importar</span>
                 <span>
-                  {selectedIndices.size} de {parsedData.totalCount} selecionados
+                  {selectedIndices.size} de {parsedData.analysis.newCount} novos selecionados
+                  {parsedData.analysis.duplicateCount > 0 ? (
+                    <span className="text-amber-600 dark:text-amber-400 ml-1">
+                      ({parsedData.analysis.duplicateCount} ignorados)
+                    </span>
+                  ) : null}
                 </span>
               </div>
 
@@ -551,89 +626,120 @@ export const ImportProductsDialog: React.FC<ImportProductsDialogProps> = ({
                       Nenhum produto corresponde aos critérios de busca.
                     </div>
                   ) : (
-                    filteredProductItems.map(({ product, originalIndex }) => {
-                      const isSelected = selectedIndices.has(originalIndex);
-                      return (
-                        <div
-                          key={`${product.nome}-${originalIndex}`}
-                          onClick={() => {
-                            if (!isImporting) toggleSelectIndex(originalIndex);
-                          }}
-                          className={`flex items-center gap-3 p-2.5 rounded-lg transition-colors cursor-pointer select-none ${
-                            isSelected
-                              ? "bg-primary/5 hover:bg-primary/10"
-                              : "opacity-60 hover:opacity-100 hover:bg-muted/40"
-                          }`}
-                        >
-                          <Checkbox
-                            checked={isSelected}
-                            onCheckedChange={() => toggleSelectIndex(originalIndex)}
-                            disabled={isImporting}
-                            onClick={(e) => e.stopPropagation()}
-                          />
+                    filteredProductItems.map(
+                      ({ product, originalIndex, isDuplicate, duplicateReason }) => {
+                        const isSelected = selectedIndices.has(originalIndex);
 
-                          {product.imagemPrincipal ? (
-                            <div className="h-10 w-10 shrink-0 rounded-md border bg-muted overflow-hidden">
-                              <img
-                                src={product.imagemPrincipal}
-                                alt=""
-                                className="h-full w-full object-contain"
-                              />
-                            </div>
-                          ) : (
-                            <div className="h-10 w-10 shrink-0 rounded-md border bg-muted/60 flex items-center justify-center text-muted-foreground">
-                              <Package className="h-5 w-5" />
-                            </div>
-                          )}
+                        return (
+                          <div
+                            key={`${product.nome}-${originalIndex}`}
+                            onClick={() => {
+                              if (!isImporting && !isDuplicate) {
+                                toggleSelectIndex(originalIndex);
+                              }
+                            }}
+                            className={`flex items-center gap-3 p-2.5 rounded-lg transition-colors select-none ${
+                              isDuplicate
+                                ? "opacity-45 bg-muted/20 cursor-not-allowed border border-dashed border-border/40"
+                                : isSelected
+                                  ? "bg-primary/5 hover:bg-primary/10 cursor-pointer"
+                                  : "opacity-75 hover:opacity-100 hover:bg-muted/40 cursor-pointer"
+                            }`}
+                          >
+                            <Checkbox
+                              checked={isSelected}
+                              onCheckedChange={() => {
+                                if (!isDuplicate) toggleSelectIndex(originalIndex);
+                              }}
+                              disabled={isImporting || isDuplicate}
+                              onClick={(e) => e.stopPropagation()}
+                            />
 
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              <p className="text-sm font-semibold truncate">
-                                {product.nome}
-                              </p>
-                              {product.referencia ? (
-                                <Badge variant="outline" className="text-[10px] py-0 px-1.5">
-                                  {product.referencia}
-                                </Badge>
-                              ) : null}
-                            </div>
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5 truncate">
-                              <span>{product.categoria || "Geral"}</span>
-                              {product.tecido ? (
-                                <>
-                                  <span>·</span>
-                                  <span className="truncate">{product.tecido}</span>
-                                </>
-                              ) : null}
-                            </div>
-                          </div>
+                            {product.imagemPrincipal ? (
+                              <div className="h-10 w-10 shrink-0 rounded-md border bg-muted overflow-hidden">
+                                <img
+                                  src={product.imagemPrincipal}
+                                  alt=""
+                                  className="h-full w-full object-contain"
+                                />
+                              </div>
+                            ) : (
+                              <div className="h-10 w-10 shrink-0 rounded-md border bg-muted/60 flex items-center justify-center text-muted-foreground">
+                                <Package className="h-5 w-5" />
+                              </div>
+                            )}
 
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            {product.tamanhos?.length > 0 ? (
-                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                                {product.tamanhos.length} tam
-                              </Badge>
-                            ) : null}
-                            {product.cores?.length > 0 ? (
-                              <div className="flex items-center -space-x-1">
-                                {product.cores.slice(0, 3).map((c, i) => (
-                                  <span
-                                    key={i}
-                                    className="h-3.5 w-3.5 rounded-full border border-background shadow-xs inline-block"
-                                    style={{ backgroundColor: c.hex }}
-                                  />
-                                ))}
-                                {product.cores.length > 3 ? (
-                                  <span className="text-[9px] text-muted-foreground pl-1.5">
-                                    +{product.cores.length - 3}
-                                  </span>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm font-semibold truncate">{product.nome}</p>
+                                {product.referencia ? (
+                                  <Badge variant="outline" className="text-[10px] py-0 px-1.5">
+                                    {product.referencia}
+                                  </Badge>
+                                ) : null}
+
+                                {isDuplicate ? (
+                                  <Badge
+                                    variant="outline"
+                                    className="border-amber-500/40 text-amber-700 dark:text-amber-400 bg-amber-500/10 text-[10px] py-0 px-1.5 gap-1 shrink-0"
+                                  >
+                                    <Ban className="h-2.5 w-2.5" />
+                                    Já cadastrado (ignorado)
+                                  </Badge>
+                                ) : (
+                                  <Badge
+                                    variant="secondary"
+                                    className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 text-[10px] py-0 px-1.5 shrink-0"
+                                  >
+                                    Novo
+                                  </Badge>
+                                )}
+                              </div>
+
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5 truncate">
+                                <span>{product.categoria || "Geral"}</span>
+                                {product.tecido ? (
+                                  <>
+                                    <span>·</span>
+                                    <span className="truncate">{product.tecido}</span>
+                                  </>
                                 ) : null}
                               </div>
-                            ) : null}
+
+                              {isDuplicate && duplicateReason ? (
+                                <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-0.5">
+                                  {duplicateReason}
+                                </p>
+                              ) : null}
+                            </div>
+
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {product.tamanhos?.length > 0 ? (
+                                <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                                  {product.tamanhos.length} tam
+                                </Badge>
+                              ) : null}
+                              {product.cores?.length > 0 ? (
+                                <div className="flex items-center -space-x-1">
+                                  {product.cores.slice(0, 3).map((c, i) => (
+                                    <span
+                                      key={i}
+                                      className="h-3.5 w-3.5 rounded-full border border-background shadow-xs inline-block"
+                                      style={{ backgroundColor: c.hex }}
+                                    />
+                                  ))}
+                                  {product.cores.length > 3 ? (
+                                    <span className="text-[9px] text-muted-foreground pl-1.5">
+                                      +{product.cores.length - 3}
+                                    </span>
+                                  ) : null}
+                                </div>
+                              ) : null}
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })
+                        );
+                      },
+                    )
                   )}
                 </div>
               </ScrollArea>
@@ -655,22 +761,30 @@ export const ImportProductsDialog: React.FC<ImportProductsDialogProps> = ({
         )}
 
         <DialogFooter className="pt-3 border-t mt-2 flex flex-row items-center justify-between sm:justify-between gap-2">
-          <Button
-            variant="outline"
-            onClick={() => handleClose(false)}
-            disabled={isImporting}
-          >
+          <Button variant="outline" onClick={() => handleClose(false)} disabled={isImporting}>
             Cancelar
           </Button>
 
           {parsedData ? (
             <Button
               onClick={handleExecuteImport}
-              disabled={selectedIndices.size === 0 || isImporting}
+              disabled={
+                selectedIndices.size === 0 || isImporting || parsedData.analysis.isAllDuplicates
+              }
               className="gap-1.5"
             >
-              <CheckCircle2 className="h-4 w-4" />
-              Importar {selectedIndices.size} produto{selectedIndices.size !== 1 ? "s" : ""}
+              {parsedData.analysis.isAllDuplicates ? (
+                <>
+                  <Ban className="h-4 w-4" />
+                  Nenhum produto novo a importar
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="h-4 w-4" />
+                  Importar {selectedIndices.size} produto{selectedIndices.size !== 1 ? "s" : ""} novo
+                  {selectedIndices.size !== 1 ? "s" : ""}
+                </>
+              )}
             </Button>
           ) : null}
         </DialogFooter>

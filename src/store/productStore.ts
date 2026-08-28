@@ -3,6 +3,7 @@ import { persist, createJSONStorage, type StateStorage } from "zustand/middlewar
 import { supabase } from "@/lib/supabase";
 import { withTimeout } from "@/lib/withTimeout";
 import { Product, CompanySettings, Hospital, type BaseColor } from "@/types/Product";
+import { isDuplicateProduct } from "@/lib/productDuplicateDetector";
 
 /** Inserções com várias imagens em base64 podem demorar; evita espera infinita na UI. */
 const PRODUCT_WRITE_TIMEOUT_MS = 240_000;
@@ -600,7 +601,32 @@ export const useProductStore = create<ProductStore>()(
     newProducts: Product[],
     onProgress?: (completed: number, total: number) => void,
   ) => {
-    const safeList = newProducts.map(prepareProductForPersistence);
+    const rawSafeList = newProducts.map(prepareProductForPersistence);
+    if (rawSafeList.length === 0) return;
+
+    // Filtra produtos defensivamente contra duplicatas já existentes no mesmo hospital
+    const currentProducts = get().products;
+    const safeList: Product[] = [];
+    const seenNamesInBatch = new Set<string>();
+    const seenRefsInBatch = new Set<string>();
+
+    for (const candidate of rawSafeList) {
+      const existingInSameHospital = currentProducts.filter(
+        (p) => p.hospitalId === candidate.hospitalId,
+      );
+      const isDupInDb = isDuplicateProduct(candidate, existingInSameHospital).isDuplicate;
+      if (isDupInDb) continue;
+
+      const normName = candidate.nome.toLowerCase().trim();
+      const normRef = candidate.referencia.toLowerCase().trim();
+      if (normName && seenNamesInBatch.has(normName)) continue;
+      if (normRef && seenRefsInBatch.has(normRef)) continue;
+
+      if (normName) seenNamesInBatch.add(normName);
+      if (normRef) seenRefsInBatch.add(normRef);
+      safeList.push(candidate);
+    }
+
     if (safeList.length === 0) return;
 
     const total = safeList.length;

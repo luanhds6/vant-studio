@@ -1,0 +1,1263 @@
+[
+  {
+    "id": "f1000001-0000-4000-8000-000000000031",
+    "hospital_id": "56cd484d-914f-4d7d-9114-c8a51982e414",
+    "nome": "Moletom M",
+    "categoria": "Moletom",
+    "referencia": "SB - 0031",
+    "tecido": "Moletom Flanelado",
+    "tamanhos": [
+      "M"
+    ],
+    "cores": [
+      {
+        "id": "c-azul",
+        "nome": "Azul",
+        "hex": "#223b7b"
+      },
+      {
+        "id": "c-verde",
+        "nome": "Verde",
+        "hex": "#00683a"
+      }
+    ],
+    "dimensoes": [
+      {
+        "id": "dim-31",
+        "titulo": "Dimensões",
+        "largura": "56 cm",
+        "altura": "68 cm",
+        "unidade": "cm"
+      }
+    ],
+    "detalhes": [
+      {
+        "id": "det-31",
+        "texto": "Punho e barra com ribana"
+      }
+    ],
+    "imagem_principal": "",
+    "imagens_detalhe": [],
+    "pintura": {
+      "cor": "",
+      "tamanho": "",
+      "localizacao": "",
+      "imagem": ""
+    },
+    "marca_cliente": {
+      "cor": "",
+      "tamanho": "",
+      "localizacao": "",
+      "imagem": ""
+    },
+    "nome_campo": {
+      "texto": "",
+      "cor": "",
+      "tamanho": "",
+      "localizacao": ""
+    },
+    "timbrado": {
+      "ativo": false,
+      "imagem": ""
+    },
+    "rastreavel": {
+      "ativo": false,
+      "imagem": ""
+    },
+    "arquivado": false
+  },
+  {
+    "id": "f1000002-0000-4000-8000-000000000032",
+    "hospital_id": "56cd484d-914f-4d7d-9114-c8a51982e414",
+    "nome": "Moletom G",
+    "categoria": "Moletom",
+    "referencia": "SB - 0032",
+    "tecido": "Moletom Flanelado",
+    "tamanhos": [
+      "G"
+    ],
+    "cores": [
+      {
+        "id": "c-azul",
+        "nome": "Azul",
+        "hex": "#223b7b"
+      },
+      {
+        "id": "c-verde",
+        "nome": "Verde",
+        "hex": "#00683a"
+      }
+    ],
+    "dimensoes": [
+      {
+        "id": "dim-32",
+        "titulo": "Dimensões",
+        "largura": "60 cm",
+        "altura": "72 cm",
+        "unidade": "cm"
+      }
+    ],
+    "detalhes": [
+      {
+        "id": "det-32",
+        "texto": "Punho e barra com ribana"
+      }
+    ],
+    "imagem_principal": "",
+    "imagens_detalhe": [],
+    "pintura": {
+      "cor": "",
+      "tamanho": "",
+      "localizacao": "",
+      "imagem": ""
+    },
+    "marca_cliente": {
+      "cor": "",
+      "tamanho": "",
+      "localizacao": "",
+      "imagem": ""
+    },
+    "nome_campo": {
+      "texto": "",
+      "cor": "",
+      "tamanho": "",
+      "localizacao": ""
+    },
+    "timbrado": {
+      "ativo": false,
+      "imagem": ""
+    },
+    "rastreavel": {
+      "ativo": false,
+      "imagem": ""
+    },
+    "arquivado": false
+  },
+  {
+    "id": "f1000003-0000-4000-8000-000000000033",
+    "hospital_id": "56cd484d-914f-4d7d-9114-c8a51982e414",
+    "nome": "Moletom GG",
+    "categoria": "Moletom",
+    "referencia": "SB - 0033",
+    "tecido": "Moletom Flanelado",
+    "tamanhos": [
+      "GG"
+    ],
+    "cores": [
+      {
+        "id": "c-azul",
+        "nome": "Azul",
+        "hex": "#223b7b"
+      },
+      {
+        "id": "c-verde",
+        "nome": "Verde",
+        "hex": "#00683a"
+      }
+    ],
+    "dimensoes": [
+      {
+        "id": "dim-33",
+        "titulo": "Dimensões",
+        "largura": "64 cm",
+        "altura": "75 cm",
+        "unidade": "cm"
+      }
+    ],
+    "detalhes": [
+      {
+        "id": "det-33",
+        "texto": "Punho e barra com ribana"
+      }
+    ],
+    "imagem_principal": "",
+    "imagens_detalhe": [],
+    "pintura": {
+      "cor": "",
+      "tamanho": "",
+      "localizacao": "",
+      "imagem": ""
+    },
+    "marca_cliente": {
+      "cor": "",
+      "tamanho": "",
+      "localizacao": "",
+      "imagem": ""
+    },
+    "nome_campo": {
+      "texto": "",
+      "cor": "",
+      "tamanho": "",
+      "localizacao": ""
+    },
+    "timbrado": {
+      "ativo": false,
+      "imagem": ""
+    },
+    "rastreavel": {
+      "ativo": false,
+      "imagem": ""
+    },
+    "arquivado": false
+  },
+  {
+    "id": "f1000004-0000-4000-8000-000000000034",
+    "hospital_id": "56cd484d-914f-4d7d-9114-c8a51982e414",
+    "nome": "Moletom EXG",
+    "categoria": "Moletom",
+    "referencia": "SB - 0034",
+    "tecido": "Moletom Flanelado",
+    "tamanhos": [
+      "EXG"
+    ],
+    "cores": [
+      {
+        "id": "c-azul",
+        "nome": "Azul",
+        "hex": "#223b7b"
+      },
+      {
+        "id": "c-verde",
+        "nome": "Verde",
+        "hex": "#00683a"
+      }
+    ],
+    "dimensoes": [
+      {
+        "id": "dim-34",
+        "titulo": "Dimensões",
+        "largura": "70 cm",
+        "altura": "80 cm",
+        "unidade": "cm"
+      }
+    ],
+    "detalhes": [
+      {
+        "id": "det-34",
+        "texto": "Punho e barra com ribana"
+      }
+    ],
+    "imagem_principal": "",
+    "imagens_detalhe": [],
+    "pintura": {
+      "cor": "",
+      "tamanho": "",
+      "localizacao": "",
+      "imagem": ""
+    },
+    "marca_cliente": {
+      "cor": "",
+      "tamanho": "",
+      "localizacao": "",
+      "imagem": ""
+    },
+    "nome_campo": {
+      "texto": "",
+      "cor": "",
+      "tamanho": "",
+      "localizacao": ""
+    },
+    "timbrado": {
+      "ativo": false,
+      "imagem": ""
+    },
+    "rastreavel": {
+      "ativo": false,
+      "imagem": ""
+    },
+    "arquivado": false
+  },
+  {
+    "id": "f1000005-0000-4000-8000-000000000035",
+    "hospital_id": "56cd484d-914f-4d7d-9114-c8a51982e414",
+    "nome": "Avental cirúrgico sem opa",
+    "categoria": "Cirurgico",
+    "referencia": "SB - 0035",
+    "tecido": "Brim 100% algodão",
+    "tamanhos": [
+      "UNICO"
+    ],
+    "cores": [
+      {
+        "id": "c-azul",
+        "nome": "AZUL CELESTE (0003)",
+        "hex": "#8197cd"
+      },
+      {
+        "id": "c-verde",
+        "nome": "VERDE AGUA (0002)",
+        "hex": "#96d2b2"
+      }
+    ],
+    "dimensoes": [
+      {
+        "id": "dim-35",
+        "titulo": "Dimensões",
+        "largura": "80 cm",
+        "altura": "1,35 m",
+        "unidade": "cm"
+      }
+    ],
+    "detalhes": [
+      {
+        "id": "det-35",
+        "texto": "Sem opa, tiras de amarração traseiras e punho de ribana"
+      }
+    ],
+    "imagem_principal": "",
+    "imagens_detalhe": [],
+    "pintura": {
+      "cor": "",
+      "tamanho": "",
+      "localizacao": "",
+      "imagem": ""
+    },
+    "marca_cliente": {
+      "cor": "",
+      "tamanho": "",
+      "localizacao": "",
+      "imagem": ""
+    },
+    "nome_campo": {
+      "texto": "",
+      "cor": "",
+      "tamanho": "",
+      "localizacao": ""
+    },
+    "timbrado": {
+      "ativo": false,
+      "imagem": ""
+    },
+    "rastreavel": {
+      "ativo": false,
+      "imagem": ""
+    },
+    "arquivado": false
+  },
+  {
+    "id": "f1000006-0000-4000-8000-000000000036",
+    "hospital_id": "56cd484d-914f-4d7d-9114-c8a51982e414",
+    "nome": "Campo Coronário",
+    "categoria": "Campo",
+    "referencia": "SB - 0036",
+    "tecido": "Brim 100% algodão",
+    "tamanhos": [
+      "UNICO"
+    ],
+    "cores": [
+      {
+        "id": "c-branco",
+        "nome": "BRANCO (0004)",
+        "hex": "#ffffff"
+      }
+    ],
+    "dimensoes": [
+      {
+        "id": "dim-36",
+        "titulo": "Dimensões",
+        "largura": "75 cm",
+        "altura": "75 cm",
+        "unidade": "cm"
+      }
+    ],
+    "detalhes": [
+      {
+        "id": "det-36",
+        "texto": "Bainha de 1 cm em toda a borda"
+      }
+    ],
+    "imagem_principal": "",
+    "imagens_detalhe": [],
+    "pintura": {
+      "cor": "",
+      "tamanho": "",
+      "localizacao": "",
+      "imagem": ""
+    },
+    "marca_cliente": {
+      "cor": "",
+      "tamanho": "",
+      "localizacao": "",
+      "imagem": ""
+    },
+    "nome_campo": {
+      "texto": "",
+      "cor": "",
+      "tamanho": "",
+      "localizacao": ""
+    },
+    "timbrado": {
+      "ativo": false,
+      "imagem": ""
+    },
+    "rastreavel": {
+      "ativo": false,
+      "imagem": ""
+    },
+    "arquivado": false
+  },
+  {
+    "id": "f1000007-0000-4000-8000-000000000037",
+    "hospital_id": "56cd484d-914f-4d7d-9114-c8a51982e414",
+    "nome": "Campo Fenestrado Duplo",
+    "categoria": "Campo",
+    "referencia": "SB - 0037",
+    "tecido": "Brim 100% algodão",
+    "tamanhos": [
+      "UNICO"
+    ],
+    "cores": [
+      {
+        "id": "c-verde",
+        "nome": "VERDE AGUA (0002)",
+        "hex": "#96d2b2"
+      }
+    ],
+    "dimensoes": [
+      {
+        "id": "dim-37",
+        "titulo": "Dimensões",
+        "largura": "75 cm",
+        "altura": "75 cm",
+        "unidade": "cm"
+      }
+    ],
+    "detalhes": [
+      {
+        "id": "det-37",
+        "texto": "Camada dupla com fenestra central reforçada"
+      }
+    ],
+    "imagem_principal": "",
+    "imagens_detalhe": [],
+    "pintura": {
+      "cor": "",
+      "tamanho": "",
+      "localizacao": "",
+      "imagem": ""
+    },
+    "marca_cliente": {
+      "cor": "",
+      "tamanho": "",
+      "localizacao": "",
+      "imagem": ""
+    },
+    "nome_campo": {
+      "texto": "",
+      "cor": "",
+      "tamanho": "",
+      "localizacao": ""
+    },
+    "timbrado": {
+      "ativo": false,
+      "imagem": ""
+    },
+    "rastreavel": {
+      "ativo": false,
+      "imagem": ""
+    },
+    "arquivado": false
+  },
+  {
+    "id": "f1000008-0000-4000-8000-000000000038",
+    "hospital_id": "56cd484d-914f-4d7d-9114-c8a51982e414",
+    "nome": "Camisola CC",
+    "categoria": "Camisola",
+    "referencia": "SB - 0038",
+    "tecido": "Algodão",
+    "tamanhos": [
+      "UNICO"
+    ],
+    "cores": [
+      {
+        "id": "c-azul",
+        "nome": "AZUL CELESTE (0003)",
+        "hex": "#8197cd"
+      },
+      {
+        "id": "c-branco",
+        "nome": "BRANCO (0004)",
+        "hex": "#ffffff"
+      },
+      {
+        "id": "c-verde",
+        "nome": "VERDE AGUA (0002)",
+        "hex": "#96d2b2"
+      }
+    ],
+    "dimensoes": [
+      {
+        "id": "dim-38",
+        "titulo": "Dimensões",
+        "largura": "65 cm",
+        "altura": "1,00 m",
+        "unidade": "cm"
+      }
+    ],
+    "detalhes": [
+      {
+        "id": "det-38",
+        "texto": "Modelo para Centro Cirúrgico com amarração traseira"
+      }
+    ],
+    "imagem_principal": "",
+    "imagens_detalhe": [],
+    "pintura": {
+      "cor": "",
+      "tamanho": "",
+      "localizacao": "",
+      "imagem": ""
+    },
+    "marca_cliente": {
+      "cor": "",
+      "tamanho": "",
+      "localizacao": "",
+      "imagem": ""
+    },
+    "nome_campo": {
+      "texto": "",
+      "cor": "",
+      "tamanho": "",
+      "localizacao": ""
+    },
+    "timbrado": {
+      "ativo": false,
+      "imagem": ""
+    },
+    "rastreavel": {
+      "ativo": false,
+      "imagem": ""
+    },
+    "arquivado": false
+  },
+  {
+    "id": "f1000009-0000-4000-8000-000000000039",
+    "hospital_id": "56cd484d-914f-4d7d-9114-c8a51982e414",
+    "nome": "Camisola Obeso",
+    "categoria": "Camisola",
+    "referencia": "SB - 0039",
+    "tecido": "Algodão",
+    "tamanhos": [
+      "UNICO"
+    ],
+    "cores": [
+      {
+        "id": "c-branco",
+        "nome": "BRANCO (0004)",
+        "hex": "#ffffff"
+      }
+    ],
+    "dimensoes": [
+      {
+        "id": "dim-39",
+        "titulo": "Dimensões",
+        "largura": "1,30 m",
+        "altura": "1,20 m",
+        "unidade": "cm"
+      }
+    ],
+    "detalhes": [
+      {
+        "id": "det-39",
+        "texto": "Modelagem ampla especial para pacientes bariátricos/obesos"
+      }
+    ],
+    "imagem_principal": "",
+    "imagens_detalhe": [],
+    "pintura": {
+      "cor": "",
+      "tamanho": "",
+      "localizacao": "",
+      "imagem": ""
+    },
+    "marca_cliente": {
+      "cor": "",
+      "tamanho": "",
+      "localizacao": "",
+      "imagem": ""
+    },
+    "nome_campo": {
+      "texto": "",
+      "cor": "",
+      "tamanho": "",
+      "localizacao": ""
+    },
+    "timbrado": {
+      "ativo": false,
+      "imagem": ""
+    },
+    "rastreavel": {
+      "ativo": false,
+      "imagem": ""
+    },
+    "arquivado": false
+  },
+  {
+    "id": "f1000010-0000-4000-8000-000000000040",
+    "hospital_id": "56cd484d-914f-4d7d-9114-c8a51982e414",
+    "nome": "Camisola Adulto Oxford",
+    "categoria": "Camisola",
+    "referencia": "SB - 0040",
+    "tecido": "Oxford 100% Poliester",
+    "tamanhos": [
+      "UNICO"
+    ],
+    "cores": [
+      {
+        "id": "c-azul",
+        "nome": "AZUL CELESTE (0003)",
+        "hex": "#8197cd"
+      }
+    ],
+    "dimensoes": [
+      {
+        "id": "dim-40",
+        "titulo": "Dimensões",
+        "largura": "65 cm",
+        "altura": "1,05 m",
+        "unidade": "cm"
+      }
+    ],
+    "detalhes": [
+      {
+        "id": "det-40",
+        "texto": "Confeccionada em tecido Oxford resistente e de fácil higienização"
+      }
+    ],
+    "imagem_principal": "",
+    "imagens_detalhe": [],
+    "pintura": {
+      "cor": "",
+      "tamanho": "",
+      "localizacao": "",
+      "imagem": ""
+    },
+    "marca_cliente": {
+      "cor": "",
+      "tamanho": "",
+      "localizacao": "",
+      "imagem": ""
+    },
+    "nome_campo": {
+      "texto": "",
+      "cor": "",
+      "tamanho": "",
+      "localizacao": ""
+    },
+    "timbrado": {
+      "ativo": false,
+      "imagem": ""
+    },
+    "rastreavel": {
+      "ativo": false,
+      "imagem": ""
+    },
+    "arquivado": false
+  },
+  {
+    "id": "f1000011-0000-4000-8000-000000000041",
+    "hospital_id": "56cd484d-914f-4d7d-9114-c8a51982e414",
+    "nome": "Camisola Tamanho Especial",
+    "categoria": "Camisola",
+    "referencia": "SB - 0041",
+    "tecido": "Algodão",
+    "tamanhos": [
+      "ESPECIAL"
+    ],
+    "cores": [
+      {
+        "id": "c-azul",
+        "nome": "AZUL CELESTE (0003)",
+        "hex": "#8197cd"
+      }
+    ],
+    "dimensoes": [
+      {
+        "id": "dim-41",
+        "titulo": "Dimensões",
+        "largura": "1,20 m",
+        "altura": "1,15 m",
+        "unidade": "cm"
+      }
+    ],
+    "detalhes": [
+      {
+        "id": "det-41",
+        "texto": "Tamanho especial com amarração reforçada"
+      }
+    ],
+    "imagem_principal": "",
+    "imagens_detalhe": [],
+    "pintura": {
+      "cor": "",
+      "tamanho": "",
+      "localizacao": "",
+      "imagem": ""
+    },
+    "marca_cliente": {
+      "cor": "",
+      "tamanho": "",
+      "localizacao": "",
+      "imagem": ""
+    },
+    "nome_campo": {
+      "texto": "",
+      "cor": "",
+      "tamanho": "",
+      "localizacao": ""
+    },
+    "timbrado": {
+      "ativo": false,
+      "imagem": ""
+    },
+    "rastreavel": {
+      "ativo": false,
+      "imagem": ""
+    },
+    "arquivado": false
+  },
+  {
+    "id": "f1000012-0000-4000-8000-000000000042",
+    "hospital_id": "56cd484d-914f-4d7d-9114-c8a51982e414",
+    "nome": "Calça Privativa PP",
+    "categoria": "Privativo",
+    "referencia": "SB - 0042",
+    "tecido": "Cedromix / Percal Misto",
+    "tamanhos": [
+      "PP"
+    ],
+    "cores": [
+      {
+        "id": "c-azul",
+        "nome": "AZUL CELESTE (0003)",
+        "hex": "#8197cd"
+      },
+      {
+        "id": "c-verde",
+        "nome": "VERDE AGUA (0002)",
+        "hex": "#96d2b2"
+      }
+    ],
+    "dimensoes": [
+      {
+        "id": "dim-42-1",
+        "titulo": "Cintura e Altura",
+        "largura": "28 cm / 45 cm",
+        "altura": "1,05 m",
+        "unidade": "cm"
+      },
+      {
+        "id": "dim-42-2",
+        "titulo": "Bolso",
+        "largura": "14 cm",
+        "altura": "15 cm",
+        "unidade": "cm"
+      },
+      {
+        "id": "dim-42-3",
+        "titulo": "Barra",
+        "largura": "20 cm",
+        "altura": "",
+        "unidade": "cm"
+      }
+    ],
+    "detalhes": [
+      {
+        "id": "det-42",
+        "texto": "Calça privativa com elástico na cintura e bolso"
+      }
+    ],
+    "imagem_principal": "",
+    "imagens_detalhe": [],
+    "pintura": {
+      "cor": "",
+      "tamanho": "",
+      "localizacao": "",
+      "imagem": ""
+    },
+    "marca_cliente": {
+      "cor": "",
+      "tamanho": "",
+      "localizacao": "",
+      "imagem": ""
+    },
+    "nome_campo": {
+      "texto": "",
+      "cor": "",
+      "tamanho": "",
+      "localizacao": ""
+    },
+    "timbrado": {
+      "ativo": false,
+      "imagem": ""
+    },
+    "rastreavel": {
+      "ativo": false,
+      "imagem": ""
+    },
+    "arquivado": false
+  },
+  {
+    "id": "f1000013-0000-4000-8000-000000000043",
+    "hospital_id": "56cd484d-914f-4d7d-9114-c8a51982e414",
+    "nome": "Calça Privativa XG",
+    "categoria": "Privativo",
+    "referencia": "SB - 0043",
+    "tecido": "Cedromix / Percal Misto",
+    "tamanhos": [
+      "XG"
+    ],
+    "cores": [
+      {
+        "id": "c-azul",
+        "nome": "AZUL CELESTE (0003)",
+        "hex": "#8197cd"
+      },
+      {
+        "id": "c-verde",
+        "nome": "VERDE AGUA (0002)",
+        "hex": "#96d2b2"
+      }
+    ],
+    "dimensoes": [
+      {
+        "id": "dim-43-1",
+        "titulo": "Cintura e Altura",
+        "largura": "40 cm / 65 cm",
+        "altura": "1,18 m",
+        "unidade": "cm"
+      },
+      {
+        "id": "dim-43-2",
+        "titulo": "Bolso",
+        "largura": "17 cm",
+        "altura": "17,5 cm",
+        "unidade": "cm"
+      },
+      {
+        "id": "dim-43-3",
+        "titulo": "Barra",
+        "largura": "24 cm",
+        "altura": "",
+        "unidade": "cm"
+      }
+    ],
+    "detalhes": [
+      {
+        "id": "det-43",
+        "texto": "Calça privativa com elástico na cintura e bolso"
+      }
+    ],
+    "imagem_principal": "",
+    "imagens_detalhe": [],
+    "pintura": {
+      "cor": "",
+      "tamanho": "",
+      "localizacao": "",
+      "imagem": ""
+    },
+    "marca_cliente": {
+      "cor": "",
+      "tamanho": "",
+      "localizacao": "",
+      "imagem": ""
+    },
+    "nome_campo": {
+      "texto": "",
+      "cor": "",
+      "tamanho": "",
+      "localizacao": ""
+    },
+    "timbrado": {
+      "ativo": false,
+      "imagem": ""
+    },
+    "rastreavel": {
+      "ativo": false,
+      "imagem": ""
+    },
+    "arquivado": false
+  },
+  {
+    "id": "f1000014-0000-4000-8000-000000000044",
+    "hospital_id": "56cd484d-914f-4d7d-9114-c8a51982e414",
+    "nome": "Camisa Privativa PP",
+    "categoria": "Privativo",
+    "referencia": "SB - 0044",
+    "tecido": "Cedromix / Percal Misto",
+    "tamanhos": [
+      "PP"
+    ],
+    "cores": [
+      {
+        "id": "c-azul",
+        "nome": "AZUL CELESTE (0003)",
+        "hex": "#8197cd"
+      },
+      {
+        "id": "c-verde",
+        "nome": "VERDE AGUA (0002)",
+        "hex": "#96d2b2"
+      }
+    ],
+    "dimensoes": [
+      {
+        "id": "dim-44",
+        "titulo": "Dimensões",
+        "largura": "55 cm",
+        "altura": "60 cm",
+        "unidade": "cm"
+      }
+    ],
+    "detalhes": [
+      {
+        "id": "det-44",
+        "texto": "Gola V com bolso superior e bolsos inferiores"
+      }
+    ],
+    "imagem_principal": "",
+    "imagens_detalhe": [],
+    "pintura": {
+      "cor": "",
+      "tamanho": "",
+      "localizacao": "",
+      "imagem": ""
+    },
+    "marca_cliente": {
+      "cor": "",
+      "tamanho": "",
+      "localizacao": "",
+      "imagem": ""
+    },
+    "nome_campo": {
+      "texto": "",
+      "cor": "",
+      "tamanho": "",
+      "localizacao": ""
+    },
+    "timbrado": {
+      "ativo": false,
+      "imagem": ""
+    },
+    "rastreavel": {
+      "ativo": false,
+      "imagem": ""
+    },
+    "arquivado": false
+  },
+  {
+    "id": "f1000015-0000-4000-8000-000000000045",
+    "hospital_id": "56cd484d-914f-4d7d-9114-c8a51982e414",
+    "nome": "Camisa Privativa XG",
+    "categoria": "Privativo",
+    "referencia": "SB - 0045",
+    "tecido": "Cedromix / Percal Misto",
+    "tamanhos": [
+      "XG"
+    ],
+    "cores": [
+      {
+        "id": "c-azul",
+        "nome": "AZUL CELESTE (0003)",
+        "hex": "#8197cd"
+      },
+      {
+        "id": "c-verde",
+        "nome": "VERDE AGUA (0002)",
+        "hex": "#96d2b2"
+      }
+    ],
+    "dimensoes": [
+      {
+        "id": "dim-45",
+        "titulo": "Dimensões",
+        "largura": "78 cm",
+        "altura": "85 cm",
+        "unidade": "cm"
+      }
+    ],
+    "detalhes": [
+      {
+        "id": "det-45",
+        "texto": "Gola V com bolso superior e bolsos inferiores"
+      }
+    ],
+    "imagem_principal": "",
+    "imagens_detalhe": [],
+    "pintura": {
+      "cor": "",
+      "tamanho": "",
+      "localizacao": "",
+      "imagem": ""
+    },
+    "marca_cliente": {
+      "cor": "",
+      "tamanho": "",
+      "localizacao": "",
+      "imagem": ""
+    },
+    "nome_campo": {
+      "texto": "",
+      "cor": "",
+      "tamanho": "",
+      "localizacao": ""
+    },
+    "timbrado": {
+      "ativo": false,
+      "imagem": ""
+    },
+    "rastreavel": {
+      "ativo": false,
+      "imagem": ""
+    },
+    "arquivado": false
+  },
+  {
+    "id": "f1000016-0000-4000-8000-000000000046",
+    "hospital_id": "56cd484d-914f-4d7d-9114-c8a51982e414",
+    "nome": "Fronha (Percal Misto)",
+    "categoria": "Fronha",
+    "referencia": "SB - 0046",
+    "tecido": "Percal Misto 60%alg. 40 % Poliéster",
+    "tamanhos": [
+      "UNICO"
+    ],
+    "cores": [
+      {
+        "id": "c-branco",
+        "nome": "BRANCO (0004)",
+        "hex": "#ffffff"
+      }
+    ],
+    "dimensoes": [
+      {
+        "id": "dim-46",
+        "titulo": "Dimensões",
+        "largura": "70 cm",
+        "altura": "50 cm",
+        "unidade": "cm"
+      }
+    ],
+    "detalhes": [
+      {
+        "id": "det-46",
+        "texto": "Fronha hospitalar com transpasse / aba interna de 20 cm"
+      }
+    ],
+    "imagem_principal": "",
+    "imagens_detalhe": [],
+    "pintura": {
+      "cor": "",
+      "tamanho": "",
+      "localizacao": "",
+      "imagem": ""
+    },
+    "marca_cliente": {
+      "cor": "",
+      "tamanho": "",
+      "localizacao": "",
+      "imagem": ""
+    },
+    "nome_campo": {
+      "texto": "",
+      "cor": "",
+      "tamanho": "",
+      "localizacao": ""
+    },
+    "timbrado": {
+      "ativo": false,
+      "imagem": ""
+    },
+    "rastreavel": {
+      "ativo": false,
+      "imagem": ""
+    },
+    "arquivado": false
+  },
+  {
+    "id": "f1000017-0000-4000-8000-000000000047",
+    "hospital_id": "56cd484d-914f-4d7d-9114-c8a51982e414",
+    "nome": "Lençol Vira Infantil (Percal Misto)",
+    "categoria": "Lençol",
+    "referencia": "SB - 0047",
+    "tecido": "Percal Misto 60%alg. 40 % Poliéster",
+    "tamanhos": [
+      "UNICO"
+    ],
+    "cores": [
+      {
+        "id": "c-branco",
+        "nome": "BRANCO (0004)",
+        "hex": "#ffffff"
+      }
+    ],
+    "dimensoes": [
+      {
+        "id": "dim-47",
+        "titulo": "Dimensões",
+        "largura": "1,70 m",
+        "altura": "1,25 m",
+        "unidade": "m"
+      }
+    ],
+    "detalhes": [
+      {
+        "id": "det-47",
+        "texto": "Bainha de 1 cm em toda a volta"
+      }
+    ],
+    "imagem_principal": "",
+    "imagens_detalhe": [],
+    "pintura": {
+      "cor": "",
+      "tamanho": "",
+      "localizacao": "",
+      "imagem": ""
+    },
+    "marca_cliente": {
+      "cor": "",
+      "tamanho": "",
+      "localizacao": "",
+      "imagem": ""
+    },
+    "nome_campo": {
+      "texto": "",
+      "cor": "",
+      "tamanho": "",
+      "localizacao": ""
+    },
+    "timbrado": {
+      "ativo": false,
+      "imagem": ""
+    },
+    "rastreavel": {
+      "ativo": false,
+      "imagem": ""
+    },
+    "arquivado": false
+  },
+  {
+    "id": "f1000018-0000-4000-8000-000000000048",
+    "hospital_id": "56cd484d-914f-4d7d-9114-c8a51982e414",
+    "nome": "Lençol Maca (Percal Misto)",
+    "categoria": "Lençol",
+    "referencia": "SB - 0048",
+    "tecido": "Percal Misto 60%alg. 40 % Poliéster",
+    "tamanhos": [
+      "UNICO"
+    ],
+    "cores": [
+      {
+        "id": "c-branco",
+        "nome": "BRANCO (0004)",
+        "hex": "#ffffff"
+      }
+    ],
+    "dimensoes": [
+      {
+        "id": "dim-48",
+        "titulo": "Dimensões",
+        "largura": "2,20 m",
+        "altura": "80 cm",
+        "unidade": "cm"
+      }
+    ],
+    "detalhes": [
+      {
+        "id": "det-48",
+        "texto": "Bainha reforçada de 1 cm"
+      }
+    ],
+    "imagem_principal": "",
+    "imagens_detalhe": [],
+    "pintura": {
+      "cor": "",
+      "tamanho": "",
+      "localizacao": "",
+      "imagem": ""
+    },
+    "marca_cliente": {
+      "cor": "",
+      "tamanho": "",
+      "localizacao": "",
+      "imagem": ""
+    },
+    "nome_campo": {
+      "texto": "",
+      "cor": "",
+      "tamanho": "",
+      "localizacao": ""
+    },
+    "timbrado": {
+      "ativo": false,
+      "imagem": ""
+    },
+    "rastreavel": {
+      "ativo": false,
+      "imagem": ""
+    },
+    "arquivado": false
+  },
+  {
+    "id": "f1000019-0000-4000-8000-000000000049",
+    "hospital_id": "56cd484d-914f-4d7d-9114-c8a51982e414",
+    "nome": "Lençol Vira (Percal Misto)",
+    "categoria": "Lençol",
+    "referencia": "SB - 0049",
+    "tecido": "Percal Misto 60%alg. 40 % Poliéster",
+    "tamanhos": [
+      "UNICO"
+    ],
+    "cores": [
+      {
+        "id": "c-branco",
+        "nome": "BRANCO (0004)",
+        "hex": "#ffffff"
+      }
+    ],
+    "dimensoes": [
+      {
+        "id": "dim-49",
+        "titulo": "Dimensões",
+        "largura": "2,50 m",
+        "altura": "1,60 m",
+        "unidade": "m"
+      }
+    ],
+    "detalhes": [
+      {
+        "id": "det-49",
+        "texto": "Bainha dupla na vira"
+      }
+    ],
+    "imagem_principal": "",
+    "imagens_detalhe": [],
+    "pintura": {
+      "cor": "",
+      "tamanho": "",
+      "localizacao": "",
+      "imagem": ""
+    },
+    "marca_cliente": {
+      "cor": "",
+      "tamanho": "",
+      "localizacao": "",
+      "imagem": ""
+    },
+    "nome_campo": {
+      "texto": "",
+      "cor": "",
+      "tamanho": "",
+      "localizacao": ""
+    },
+    "timbrado": {
+      "ativo": false,
+      "imagem": ""
+    },
+    "rastreavel": {
+      "ativo": false,
+      "imagem": ""
+    },
+    "arquivado": false
+  }
+]
